@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
 import { useAppStore, type Lead, type LeadList, type Company, type Contact } from '@/stores/app-store'
+import { useLocaleStore } from '@/stores/locale-store'
+import { useFeaturesStore } from '@/stores/features-store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card'
@@ -13,11 +15,14 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import { 
   MessageSquare, Users, Building2, List, CreditCard, LogOut, Menu, X, 
   Send, Search, Plus, Trash2, ExternalLink, Mail, Phone, Linkedin,
   Check, Sparkles, Target, Zap, Shield, ChevronRight, Star,
-  Bot, User, Briefcase, MapPin, Globe, DollarSign, Clock, TrendingUp
+  Bot, User, Briefcase, MapPin, Globe, DollarSign, Clock, TrendingUp,
+  Download, FileSpreadsheet, Bell, Filter, BarChart3, MailPlus,
+  Languages, ChevronDown, XCircle, PieChart, Activity
 } from 'lucide-react'
 
 // Format number with commas (consistent across server/client)
@@ -31,48 +36,44 @@ const PRICING_PLANS = [
     name: 'Starter',
     price: 0,
     credits: 400,
-    features: ['400 free credits', 'Basic company search', 'Email support', 'Limited exports'],
+    features: ['starterFeature1', 'starterFeature2', 'starterFeature3', 'starterFeature4'],
     popular: false
   },
   {
     name: 'Professional',
     price: 49,
     credits: 2500,
-    features: ['2,500 credits/month', 'Advanced company search', 'Contact discovery', 'Priority support', 'CRM integrations', 'Unlimited exports'],
+    features: ['proFeature1', 'proFeature2', 'proFeature3', 'proFeature4', 'proFeature5', 'proFeature6'],
     popular: true
   },
   {
     name: 'Enterprise',
     price: 199,
     credits: 15000,
-    features: ['15,000 credits/month', 'Full platform access', 'API access', 'Dedicated support', 'Custom integrations', 'Team collaboration'],
+    features: ['enterpriseFeature1', 'enterpriseFeature2', 'enterpriseFeature3', 'enterpriseFeature4', 'enterpriseFeature5', 'enterpriseFeature6'],
     popular: false
   }
 ]
 
 // Features for landing page
 const FEATURES = [
-  {
-    icon: Target,
-    title: 'AI-Powered Targeting',
-    description: 'Describe your ideal customer in plain English and let AI find the best matches.'
-  },
-  {
-    icon: Building2,
-    title: 'Company Intelligence',
-    description: 'Get detailed company profiles including tech stack, revenue, and employee count.'
-  },
-  {
-    icon: Users,
-    title: 'Decision Makers',
-    description: 'Find key decision makers with verified contact information and social profiles.'
-  },
-  {
-    icon: Zap,
-    title: 'Lightning Fast',
-    description: 'Get results in seconds, not hours. Streamline your prospecting workflow.'
-  }
+  { icon: Target, titleKey: 'featureAITargeting', descKey: 'featureAITargetingDesc' },
+  { icon: Building2, titleKey: 'featureCompanyIntel', descKey: 'featureCompanyIntelDesc' },
+  { icon: Users, titleKey: 'featureDecisionMakers', descKey: 'featureDecisionMakersDesc' },
+  { icon: Zap, titleKey: 'featureLightning', descKey: 'featureLightningDesc' }
 ]
+
+// Industry options
+const INDUSTRIES = [
+  'Technology', 'Software', 'Finance', 'Healthcare', 'Manufacturing', 
+  'Retail', 'Education', 'Real Estate', 'Marketing', 'Consulting'
+]
+
+// Company size options
+const COMPANY_SIZES = ['1-10', '11-50', '51-200', '201-500', '501-1000', '1000+']
+
+// Revenue options
+const REVENUES = ['<$1M', '$1M-$5M', '$5M-$10M', '$10M-$50M', '$50M-$100M', '>$100M']
 
 // Mock companies for demo
 const MOCK_COMPANIES: Company[] = [
@@ -155,6 +156,14 @@ export default function Home() {
     setShowLoginModal, setShowSignupModal, setShowNewListModal,
     sidebarCollapsed, setSidebarCollapsed
   } = useAppStore()
+  
+  const { language, t, setLanguage } = useLocaleStore()
+  const {
+    emailTemplates, addEmailTemplate, deleteEmailTemplate,
+    notifications, unreadCount, addNotification, markNotificationRead, markAllNotificationsRead,
+    filters, setFilters, clearFilters,
+    showNotifications, setShowNotifications
+  } = useFeaturesStore()
 
   const [chatInput, setChatInput] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
@@ -162,6 +171,10 @@ export default function Home() {
   const [newListDescription, setNewListDescription] = useState('')
   const [signupForm, setSignupForm] = useState({ name: '', email: '', password: '', company: '' })
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
+  const [showLangDropdown, setShowLangDropdown] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
+  const [newTemplate, setNewTemplate] = useState({ name: '', subject: '', body: '' })
+  const [showTemplateModal, setShowTemplateModal] = useState(false)
 
   const chatEndRef = useRef<HTMLDivElement>(null)
 
@@ -301,7 +314,6 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Search error:', error)
-      // Use mock data on error
       if (type === 'companies') {
         setSearchResults(MOCK_COMPANIES)
       } else {
@@ -369,6 +381,11 @@ export default function Home() {
       const data = await response.json()
       if (response.ok) {
         addLead(data.lead)
+        addNotification({
+          type: 'success',
+          title: 'Lead saved',
+          message: `${company.name} has been added to your leads`
+        })
       }
     } catch (error) {
       console.error('Failed to save lead:', error)
@@ -397,6 +414,465 @@ export default function Home() {
     }
   }
 
+  const handleExport = async (format: 'csv' | 'excel') => {
+    try {
+      const response = await fetch('/api/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leads, format })
+      })
+
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = format === 'csv' ? 'leads_export.csv' : 'leads_export.xls'
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        a.remove()
+        
+        addNotification({
+          type: 'success',
+          title: t.exportSuccess,
+          message: `${leads.length} leads exported`
+        })
+      }
+    } catch (error) {
+      console.error('Export failed:', error)
+      addNotification({
+        type: 'error',
+        title: t.exportFailed,
+        message: 'Please try again'
+      })
+    }
+  }
+
+  const handleSaveTemplate = () => {
+    if (!newTemplate.name.trim() || !newTemplate.subject.trim() || !newTemplate.body.trim()) return
+    
+    addEmailTemplate({
+      id: Math.random().toString(36).substring(7),
+      name: newTemplate.name,
+      subject: newTemplate.subject,
+      body: newTemplate.body,
+      variables: [],
+      createdAt: new Date().toISOString()
+    })
+    
+    setNewTemplate({ name: '', subject: '', body: '' })
+    setShowTemplateModal(false)
+  }
+
+  // Language selector component
+  const LanguageSelector = () => (
+    <div className="relative">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setShowLangDropdown(!showLangDropdown)}
+        className="gap-2 text-white hover:bg-white/10"
+      >
+        <Languages className="w-4 h-4" />
+        {language.toUpperCase()}
+        <ChevronDown className="w-3 h-3" />
+      </Button>
+      {showLangDropdown && (
+        <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border z-50">
+          {[
+            { code: 'en' as const, label: t.english },
+            { code: 'fr' as const, label: t.french },
+            { code: 'es' as const, label: t.spanish },
+            { code: 'de' as const, label: t.german },
+            { code: 'pt' as const, label: t.portuguese },
+            { code: 'it' as const, label: t.italian }
+          ].map((lang) => (
+            <button
+              key={lang.code}
+              onClick={() => {
+                setLanguage(lang.code)
+                setShowLangDropdown(false)
+              }}
+              className={`w-full px-4 py-2 text-left hover:bg-gray-100 first:rounded-t-lg last:rounded-b-lg ${
+                language === lang.code ? 'bg-gray-50 font-medium' : ''
+              }`}
+            >
+              {lang.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+
+  // Notifications panel
+  const NotificationsPanel = () => (
+    <div className="relative">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setShowNotifications(!showNotifications)}
+        className="relative gap-2"
+      >
+        <Bell className="w-4 h-4" />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+            {unreadCount}
+          </span>
+        )}
+      </Button>
+      {showNotifications && (
+        <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border z-50">
+          <div className="p-3 border-b flex items-center justify-between">
+            <h3 className="font-semibold">{t.notifications}</h3>
+            {unreadCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={markAllNotificationsRead}>
+                {t.markAsRead}
+              </Button>
+            )}
+          </div>
+          <ScrollArea className="max-h-64">
+            {notifications.length === 0 ? (
+              <p className="p-4 text-center text-muted-foreground">{t.noNotifications}</p>
+            ) : (
+              notifications.map((n) => (
+                <div
+                  key={n.id}
+                  className={`p-3 border-b last:border-0 cursor-pointer hover:bg-gray-50 ${
+                    !n.read ? 'bg-blue-50' : ''
+                  }`}
+                  onClick={() => markNotificationRead(n.id)}
+                >
+                  <p className="font-medium text-sm">{n.title}</p>
+                  <p className="text-xs text-muted-foreground">{n.message}</p>
+                </div>
+              ))
+            )}
+          </ScrollArea>
+        </div>
+      )}
+    </div>
+  )
+
+  // Analytics View Component
+  const AnalyticsView = () => {
+    const totalLeads = leads.length
+    const newLeadsCount = leads.filter(l => l.status === 'new').length
+    const contactedLeads = leads.filter(l => l.status === 'contacted').length
+    const qualifiedLeads = leads.filter(l => l.status === 'qualified').length
+    const conversionRate = totalLeads > 0 ? Math.round((qualifiedLeads / totalLeads) * 100) : 0
+
+    return (
+      <div className="max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">{t.totalLeads}</p>
+                  <p className="text-3xl font-bold" style={{ color: '#102B51' }}>{totalLeads}</p>
+                </div>
+                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#668DF7' }}>
+                  <Users className="w-6 h-6 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">{t.newLeads}</p>
+                  <p className="text-3xl font-bold text-blue-500">{newLeadsCount}</p>
+                </div>
+                <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <Sparkles className="w-6 h-6 text-blue-500" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">{t.contactedLeads}</p>
+                  <p className="text-3xl font-bold text-yellow-500">{contactedLeads}</p>
+                </div>
+                <div className="w-12 h-12 rounded-lg bg-yellow-100 flex items-center justify-center">
+                  <Mail className="w-6 h-6 text-yellow-500" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">{t.conversionRate}</p>
+                  <p className="text-3xl font-bold text-green-500">{conversionRate}%</p>
+                </div>
+                <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+                  <TrendingUp className="w-6 h-6 text-green-500" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <PieChart className="w-5 h-5" style={{ color: '#668DF7' }} />
+                {t.industry} Distribution
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {['Technology', 'Finance', 'Healthcare', 'Retail', 'Other'].map((industry, i) => {
+                  const count = Math.floor(Math.random() * 20) + 5
+                  const percentage = Math.floor(Math.random() * 30) + 10
+                  return (
+                    <div key={industry} className="flex items-center gap-3">
+                      <div className="w-24 text-sm">{industry}</div>
+                      <div className="flex-1 bg-gray-100 rounded-full h-2">
+                        <div 
+                          className="h-2 rounded-full" 
+                          style={{ width: `${percentage}%`, backgroundColor: '#668DF7' }}
+                        />
+                      </div>
+                      <span className="text-sm text-muted-foreground w-8">{count}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="w-5 h-5" style={{ color: '#668DF7' }} />
+                {t.thisMonth} Activity
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {['Week 1', 'Week 2', 'Week 3', 'Week 4'].map((week, i) => {
+                  const count = Math.floor(Math.random() * 30) + 10
+                  return (
+                    <div key={week} className="flex items-center gap-3">
+                      <div className="w-16 text-sm">{week}</div>
+                      <div className="flex-1 bg-gray-100 rounded-full h-4">
+                        <div 
+                          className="h-4 rounded-full flex items-center justify-end pr-2 text-xs text-white font-medium" 
+                          style={{ width: `${count * 2}%`, backgroundColor: '#102B51', minWidth: '40px' }}
+                        >
+                          {count}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  // Email Sequences View
+  const EmailSequencesView = () => (
+    <div className="max-w-4xl mx-auto">
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <p className="text-muted-foreground">{emailTemplates.length} templates</p>
+        </div>
+        <Button
+          onClick={() => setShowTemplateModal(true)}
+          style={{ backgroundColor: '#668DF7' }}
+          className="text-white gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          {t.newTemplate}
+        </Button>
+      </div>
+
+      {emailTemplates.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="py-12 text-center">
+            <MailPlus className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+            <h3 className="text-lg font-semibold mb-2">{t.emailTemplates}</h3>
+            <p className="text-muted-foreground mb-4">
+              Create email templates for your outreach campaigns.
+            </p>
+            <Button
+              onClick={() => setShowTemplateModal(true)}
+              style={{ backgroundColor: '#668DF7' }}
+              className="text-white"
+            >
+              {t.newTemplate}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {emailTemplates.map((template) => (
+            <Card key={template.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="font-semibold" style={{ color: '#102B51' }}>{template.name}</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      <strong>{t.subject}:</strong> {template.subject}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
+                      {template.body}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => deleteEmailTemplate(template.id)}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Template Modal */}
+      <Dialog open={showTemplateModal} onOpenChange={setShowTemplateModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t.newTemplate}</DialogTitle>
+            <DialogDescription>Create a new email template for your outreach.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Template Name</Label>
+              <Input
+                placeholder="e.g., Initial Outreach"
+                value={newTemplate.name}
+                onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>{t.subject}</Label>
+              <Input
+                placeholder="e.g., Quick question about {{company_name}}"
+                value={newTemplate.subject}
+                onChange={(e) => setNewTemplate({ ...newTemplate, subject: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>{t.body}</Label>
+              <Textarea
+                placeholder="Hi {{first_name}},
+
+I noticed that {{company_name}} is..."
+                value={newTemplate.body}
+                onChange={(e) => setNewTemplate({ ...newTemplate, body: e.target.value })}
+                rows={6}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowTemplateModal(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveTemplate} style={{ backgroundColor: '#102B51' }} className="text-white">
+                {t.saveTemplate}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+
+  // Advanced Filters Component
+  const AdvancedFilters = () => (
+    <div className={`mb-6 ${showFilters ? '' : 'hidden'}`}>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div>
+              <Label className="text-sm">{t.industry}</Label>
+              <select
+                value={filters.industry}
+                onChange={(e) => setFilters({ industry: e.target.value })}
+                className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="">All Industries</option>
+                {INDUSTRIES.map((ind) => (
+                  <option key={ind} value={ind}>{ind}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label className="text-sm">{t.companySize}</Label>
+              <select
+                value={filters.companySize}
+                onChange={(e) => setFilters({ companySize: e.target.value })}
+                className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="">All Sizes</option>
+                {COMPANY_SIZES.map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label className="text-sm">{t.revenue}</Label>
+              <select
+                value={filters.revenue}
+                onChange={(e) => setFilters({ revenue: e.target.value })}
+                className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="">All Revenues</option>
+                {REVENUES.map((rev) => (
+                  <option key={rev} value={rev}>{rev}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label className="text-sm">{t.location}</Label>
+              <Input
+                placeholder="e.g., San Francisco"
+                value={filters.location}
+                onChange={(e) => setFilters({ location: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-sm">{t.technology}</Label>
+              <Input
+                placeholder="e.g., React, AWS"
+                value={filters.technology}
+                onChange={(e) => setFilters({ technology: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4 justify-end">
+            <Button variant="outline" onClick={clearFilters}>
+              {t.clearFilters}
+            </Button>
+            <Button onClick={() => setShowFilters(false)} style={{ backgroundColor: '#668DF7' }} className="text-white">
+              {t.applyFilters}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+
   // LANDING VIEW (Not authenticated)
   if (!isAuthenticated) {
     return (
@@ -408,22 +884,23 @@ export default function Home() {
               <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#668DF7' }}>
                 <Target className="w-6 h-6 text-white" />
               </div>
-              <span className="text-xl font-bold text-white">Vibe Prospecting</span>
+              <span className="text-xl font-bold text-white">{t.appName}</span>
             </div>
             <div className="flex items-center gap-4">
+              <LanguageSelector />
               <Button
                 variant="ghost"
                 onClick={() => setShowLoginModal(true)}
                 className="text-white hover:bg-white/10"
               >
-                Log In
+                {t.login}
               </Button>
               <Button
                 onClick={() => setShowSignupModal(true)}
                 style={{ backgroundColor: '#668DF7' }}
                 className="text-white hover:opacity-90"
               >
-                Get Started Free
+                {t.getStarted}
               </Button>
             </div>
           </div>
@@ -433,14 +910,14 @@ export default function Home() {
         <section className="container mx-auto px-4 py-20">
           <div className="max-w-4xl mx-auto text-center">
             <Badge className="mb-4" style={{ backgroundColor: '#668DF7', color: 'white' }}>
-              <Sparkles className="w-3 h-3 mr-1" /> AI-Powered Prospecting
+              <Sparkles className="w-3 h-3 mr-1" /> {t.heroBadge}
             </Badge>
             <h1 className="text-5xl font-bold mb-6" style={{ color: '#102B51' }}>
-              Find Your Perfect Prospects<br />
-              <span style={{ color: '#668DF7' }}>With AI Conversation</span>
+              {t.heroTitle1}<br />
+              <span style={{ color: '#668DF7' }}>{t.heroTitle2}</span>
             </h1>
             <p className="text-xl mb-8" style={{ color: '#1A2B49' }}>
-              Simply describe your ideal customer and let AI find the best companies and contacts for your business. No complex filters, just natural conversation.
+              {t.heroSubtitle}
             </p>
             <div className="flex gap-4 justify-center">
               <Button
@@ -449,7 +926,7 @@ export default function Home() {
                 style={{ backgroundColor: '#102B51' }}
                 className="text-white hover:opacity-90"
               >
-                Start Free Trial <ChevronRight className="ml-2 w-4 h-4" />
+                {t.startFreeTrial} <ChevronRight className="ml-2 w-4 h-4" />
               </Button>
               <Button
                 size="lg"
@@ -457,7 +934,7 @@ export default function Home() {
                 onClick={() => setShowLoginModal(true)}
                 className="border-[#102B51] text-[#102B51]"
               >
-                Watch Demo
+                {t.watchDemo}
               </Button>
             </div>
           </div>
@@ -467,10 +944,10 @@ export default function Home() {
         <section className="container mx-auto px-4 py-16">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4" style={{ color: '#102B51' }}>
-              Everything You Need for B2B Prospecting
+              {t.featuresTitle}
             </h2>
             <p className="text-lg" style={{ color: '#1A2B49' }}>
-              Powerful features to help you find, qualify, and connect with your ideal customers.
+              {t.featuresSubtitle}
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -484,9 +961,9 @@ export default function Home() {
                     <feature.icon className="w-6 h-6 text-white" />
                   </div>
                   <h3 className="text-lg font-semibold mb-2" style={{ color: '#102B51' }}>
-                    {feature.title}
+                    {t[feature.titleKey as keyof typeof t]}
                   </h3>
-                  <p style={{ color: '#1A2B49' }}>{feature.description}</p>
+                  <p style={{ color: '#1A2B49' }}>{t[feature.descKey as keyof typeof t]}</p>
                 </CardContent>
               </Card>
             ))}
@@ -497,10 +974,10 @@ export default function Home() {
         <section id="pricing" className="container mx-auto px-4 py-16">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4" style={{ color: '#102B51' }}>
-              Simple, Transparent Pricing
+              {t.pricingTitle}
             </h2>
             <p className="text-lg" style={{ color: '#1A2B49' }}>
-              Start free and scale as you grow. No hidden fees.
+              {t.pricingSubtitle}
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
@@ -515,19 +992,21 @@ export default function Home() {
                     className="absolute -top-3 left-1/2 transform -translate-x-1/2 px-3 py-1 rounded-full text-sm text-white"
                     style={{ backgroundColor: '#668DF7' }}
                   >
-                    Most Popular
+                    {t.mostPopular}
                   </div>
                 )}
                 <CardHeader className="text-center">
-                  <CardTitle style={{ color: '#102B51' }}>{plan.name}</CardTitle>
+                  <CardTitle style={{ color: '#102B51' }}>
+                    {plan.name === 'Starter' ? t.starterPlan : plan.name === 'Professional' ? t.professionalPlan : t.enterprisePlan}
+                  </CardTitle>
                   <div className="mt-4">
                     <span className="text-4xl font-bold" style={{ color: '#102B51' }}>
                       ${plan.price}
                     </span>
-                    {plan.price > 0 && <span className="text-muted-foreground">/month</span>}
+                    {plan.price > 0 && <span className="text-muted-foreground">{t.perMonth}</span>}
                   </div>
                   <p className="text-sm mt-2" style={{ color: '#1A2B49' }}>
-                    {formatNumber(plan.credits)} credits included
+                    {formatNumber(plan.credits)} {t.creditsIncluded}
                   </p>
                 </CardHeader>
                 <CardContent>
@@ -535,7 +1014,7 @@ export default function Home() {
                     {plan.features.map((feature, i) => (
                       <li key={i} className="flex items-center gap-2" style={{ color: '#1A2B49' }}>
                         <Check className="w-4 h-4" style={{ color: '#10B981' }} />
-                        {feature}
+                        {t[feature as keyof typeof t]}
                       </li>
                     ))}
                   </ul>
@@ -547,7 +1026,7 @@ export default function Home() {
                     style={{ backgroundColor: plan.popular ? '#102B51' : undefined }}
                     onClick={() => setShowSignupModal(true)}
                   >
-                    {plan.price === 0 ? 'Get Started Free' : 'Start Trial'}
+                    {plan.price === 0 ? t.getStartedFree : t.startTrial}
                   </Button>
                 </CardFooter>
               </Card>
@@ -558,7 +1037,7 @@ export default function Home() {
         {/* Footer */}
         <footer className="border-t py-8" style={{ backgroundColor: '#102B51' }}>
           <div className="container mx-auto px-4 text-center text-white">
-            <p>© 2024 Vibe Prospecting. All rights reserved.</p>
+            <p>{t.copyright}</p>
           </div>
         </footer>
 
@@ -566,12 +1045,12 @@ export default function Home() {
         <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Welcome Back</DialogTitle>
-              <DialogDescription>Log in to your account to continue prospecting.</DialogDescription>
+              <DialogTitle>{t.welcomeBack}</DialogTitle>
+              <DialogDescription>{t.loginDesc}</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <Label htmlFor="login-email">Email</Label>
+                <Label htmlFor="login-email">{t.email}</Label>
                 <Input
                   id="login-email"
                   type="email"
@@ -582,7 +1061,7 @@ export default function Home() {
                 />
               </div>
               <div>
-                <Label htmlFor="login-password">Password</Label>
+                <Label htmlFor="login-password">{t.password}</Label>
                 <Input
                   id="login-password"
                   type="password"
@@ -599,10 +1078,10 @@ export default function Home() {
                 style={{ backgroundColor: '#102B51' }}
                 disabled={isLoading}
               >
-                {isLoading ? 'Logging in...' : 'Log In'}
+                {isLoading ? t.loggingIn : t.login}
               </Button>
               <p className="text-center text-sm">
-                Don't have an account?{' '}
+                {t.noAccount}{' '}
                 <Button
                   variant="link"
                   className="p-0"
@@ -612,7 +1091,7 @@ export default function Home() {
                     setShowSignupModal(true)
                   }}
                 >
-                  Sign up
+                  {t.signUp}
                 </Button>
               </p>
             </form>
@@ -623,12 +1102,12 @@ export default function Home() {
         <Dialog open={showSignupModal} onOpenChange={setShowSignupModal}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create Account</DialogTitle>
-              <DialogDescription>Get started with 400 free credits.</DialogDescription>
+              <DialogTitle>{t.createAccount}</DialogTitle>
+              <DialogDescription>{t.createAccountDesc}</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSignup} className="space-y-4">
               <div>
-                <Label htmlFor="signup-name">Full Name</Label>
+                <Label htmlFor="signup-name">{t.fullName}</Label>
                 <Input
                   id="signup-name"
                   type="text"
@@ -639,7 +1118,7 @@ export default function Home() {
                 />
               </div>
               <div>
-                <Label htmlFor="signup-email">Email</Label>
+                <Label htmlFor="signup-email">{t.email}</Label>
                 <Input
                   id="signup-email"
                   type="email"
@@ -650,7 +1129,7 @@ export default function Home() {
                 />
               </div>
               <div>
-                <Label htmlFor="signup-company">Company (Optional)</Label>
+                <Label htmlFor="signup-company">{t.company}</Label>
                 <Input
                   id="signup-company"
                   type="text"
@@ -660,7 +1139,7 @@ export default function Home() {
                 />
               </div>
               <div>
-                <Label htmlFor="signup-password">Password</Label>
+                <Label htmlFor="signup-password">{t.password}</Label>
                 <Input
                   id="signup-password"
                   type="password"
@@ -677,10 +1156,10 @@ export default function Home() {
                 style={{ backgroundColor: '#102B51' }}
                 disabled={isLoading}
               >
-                {isLoading ? 'Creating Account...' : 'Create Account'}
+                {isLoading ? t.creatingAccount : t.createAccount}
               </Button>
               <p className="text-center text-sm">
-                Already have an account?{' '}
+                {t.haveAccount}{' '}
                 <Button
                   variant="link"
                   className="p-0"
@@ -690,7 +1169,7 @@ export default function Home() {
                     setShowLoginModal(true)
                   }}
                 >
-                  Log in
+                  {t.login}
                 </Button>
               </p>
             </form>
@@ -723,10 +1202,12 @@ export default function Home() {
         {/* Navigation */}
         <nav className="flex-1 p-2 space-y-1">
           {[
-            { id: 'chat', icon: MessageSquare, label: 'AI Chat' },
-            { id: 'leads', icon: Users, label: 'My Leads' },
-            { id: 'companies', icon: Building2, label: 'Companies' },
-            { id: 'lists', icon: List, label: 'Lead Lists' }
+            { id: 'chat', icon: MessageSquare, labelKey: 'aiChat' },
+            { id: 'leads', icon: Users, labelKey: 'myLeads' },
+            { id: 'companies', icon: Building2, labelKey: 'companies' },
+            { id: 'lists', icon: List, labelKey: 'leadLists' },
+            { id: 'analytics', icon: BarChart3, labelKey: 'analytics' },
+            { id: 'sequences', icon: MailPlus, labelKey: 'emailSequences' }
           ].map((item) => (
             <button
               key={item.id}
@@ -738,7 +1219,7 @@ export default function Home() {
               }`}
             >
               <item.icon className="w-5 h-5 shrink-0" />
-              {!sidebarCollapsed && <span>{item.label}</span>}
+              {!sidebarCollapsed && <span>{t[item.labelKey as keyof typeof t]}</span>}
             </button>
           ))}
         </nav>
@@ -747,11 +1228,16 @@ export default function Home() {
         <div className="p-2 space-y-1 border-t border-white/10">
           <button
             onClick={() => setCurrentView('pricing')}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-white/70 hover:bg-white/10 hover:text-white`}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-white/70 hover:bg-white/10 hover:text-white ${
+              currentView === 'pricing' ? 'bg-white/20 text-white' : ''
+            }`}
           >
             <CreditCard className="w-5 h-5 shrink-0" />
-            {!sidebarCollapsed && <span>Pricing</span>}
+            {!sidebarCollapsed && <span>{t.pricing}</span>}
           </button>
+          <div className="px-3 py-2">
+            <LanguageSelector />
+          </div>
         </div>
 
         {/* User section */}
@@ -766,7 +1252,7 @@ export default function Home() {
             {!sidebarCollapsed && (
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white truncate">{user?.name || 'User'}</p>
-                <p className="text-xs text-white/60">{user?.credits} credits</p>
+                <p className="text-xs text-white/60">{user?.credits} {t.credits}</p>
               </div>
             )}
           </div>
@@ -786,17 +1272,20 @@ export default function Home() {
         {/* Header */}
         <header className="border-b px-6 py-4 flex items-center justify-between bg-white">
           <h1 className="text-xl font-semibold" style={{ color: '#102B51' }}>
-            {currentView === 'chat' && 'AI Prospecting Assistant'}
-            {currentView === 'leads' && 'My Leads'}
-            {currentView === 'companies' && 'Company Search'}
-            {currentView === 'lists' && 'Lead Lists'}
-            {currentView === 'pricing' && 'Pricing Plans'}
+            {currentView === 'chat' && t.aiProspectingAssistant}
+            {currentView === 'leads' && t.myLeads}
+            {currentView === 'companies' && t.companySearch}
+            {currentView === 'lists' && t.leadLists}
+            {currentView === 'pricing' && t.pricing}
+            {currentView === 'analytics' && t.analytics}
+            {currentView === 'sequences' && t.emailSequences}
           </h1>
           <div className="flex items-center gap-4">
             <Badge variant="outline" className="gap-1">
               <Sparkles className="w-3 h-3" />
-              {user?.credits} credits
+              {user?.credits} {t.credits}
             </Badge>
+            <NotificationsPanel />
             <Button
               variant="ghost"
               size="sm"
@@ -804,7 +1293,7 @@ export default function Home() {
               className="gap-2"
             >
               <LogOut className="w-4 h-4" />
-              Logout
+              {t.logout}
             </Button>
           </div>
         </header>
@@ -825,24 +1314,18 @@ export default function Home() {
                       <Bot className="w-8 h-8 text-white" />
                     </div>
                     <h2 className="text-2xl font-bold mb-2" style={{ color: '#102B51' }}>
-                      How can I help you find prospects?
+                      {t.howCanIHelp}
                     </h2>
                     <p className="mb-6" style={{ color: '#1A2B49' }}>
-                      Describe your ideal customer and I'll help you find the best matches.
+                      {t.describeCustomer}
                     </p>
                     <div className="flex flex-wrap gap-2 justify-center">
-                      {[
-                        'SaaS companies with 50-200 employees',
-                        'Tech startups in San Francisco',
-                        'Enterprise companies using Salesforce'
-                      ].map((suggestion, i) => (
+                      {[t.suggestion1, t.suggestion2, t.suggestion3].map((suggestion, i) => (
                         <Button
                           key={i}
                           variant="outline"
                           size="sm"
-                          onClick={() => {
-                            setChatInput(suggestion)
-                          }}
+                          onClick={() => setChatInput(suggestion)}
                           className="border-[#102B51]/20"
                         >
                           {suggestion}
@@ -907,7 +1390,7 @@ export default function Home() {
               {/* Input */}
               <div className="mt-4 flex gap-2">
                 <Input
-                  placeholder="Describe your ideal prospect..."
+                  placeholder={t.describeProspect}
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
@@ -928,9 +1411,39 @@ export default function Home() {
           {/* Leads View */}
           {currentView === 'leads' && (
             <div className="max-w-6xl mx-auto">
+              <AdvancedFilters />
               <div className="mb-6 flex items-center justify-between">
                 <div>
-                  <p className="text-muted-foreground">{leads.length} leads saved</p>
+                  <p className="text-muted-foreground">{leads.length} {t.leadsSaved}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowFilters(!showFilters)}
+                    className="gap-2"
+                  >
+                    <Filter className="w-4 h-4" />
+                    {t.advancedFilters}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleExport('csv')}
+                    className="gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    {t.exportCSV}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleExport('excel')}
+                    className="gap-2"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    {t.exportExcel}
+                  </Button>
                 </div>
               </div>
 
@@ -938,16 +1451,16 @@ export default function Home() {
                 <Card className="border-dashed">
                   <CardContent className="py-12 text-center">
                     <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-semibold mb-2">No leads yet</h3>
+                    <h3 className="text-lg font-semibold mb-2">{t.noLeadsYet}</h3>
                     <p className="text-muted-foreground mb-4">
-                      Start by searching for companies or chatting with AI to find prospects.
+                      {t.noLeadsDesc}
                     </p>
                     <Button
                       onClick={() => setCurrentView('companies')}
                       style={{ backgroundColor: '#668DF7' }}
                       className="text-white"
                     >
-                      Search Companies
+                      {t.searchCompanies}
                     </Button>
                   </CardContent>
                 </Card>
@@ -978,7 +1491,7 @@ export default function Home() {
                                     'border-gray-500 text-gray-500'
                                   }
                                 >
-                                  {lead.status}
+                                  {lead.status === 'new' ? t.new : lead.status === 'contacted' ? t.contacted : lead.status === 'qualified' ? t.qualified : t.lost}
                                 </Badge>
                               </div>
                               <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
@@ -997,7 +1510,7 @@ export default function Home() {
                                 {lead.companySize && (
                                   <span className="flex items-center gap-1">
                                     <Users className="w-3 h-3" />
-                                    {lead.companySize} employees
+                                    {lead.companySize} {t.employees}
                                   </span>
                                 )}
                               </div>
@@ -1023,16 +1536,16 @@ export default function Home() {
                               onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value)}
                               className="text-sm border rounded px-2 py-1"
                             >
-                              <option value="new">New</option>
-                              <option value="contacted">Contacted</option>
-                              <option value="qualified">Qualified</option>
-                              <option value="disqualified">Disqualified</option>
+                              <option value="new">{t.new}</option>
+                              <option value="contacted">{t.contacted}</option>
+                              <option value="qualified">{t.qualified}</option>
+                              <option value="lost">{t.lost}</option>
                             </select>
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handleDeleteLead(lead.id)}
-                              className="text-red-500 hover:text-red-600"
+                              className="text-red-500 hover:text-red-700"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -1046,171 +1559,197 @@ export default function Home() {
             </div>
           )}
 
-          {/* Companies/Search View */}
+          {/* Companies View */}
           {currentView === 'companies' && (
             <div className="max-w-6xl mx-auto">
-              <div className="mb-6">
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search for companies..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleSearch('companies')}
-                      className="pl-10"
-                    />
-                  </div>
-                  <Button
-                    onClick={() => handleSearch('companies')}
-                    disabled={searchLoading}
-                    style={{ backgroundColor: '#668DF7' }}
-                    className="text-white"
-                  >
-                    {searchLoading ? 'Searching...' : 'Search'}
-                  </Button>
+              <AdvancedFilters />
+              <div className="mb-6 flex gap-2">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder={t.searchCompanies}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSearch('companies')}
+                    className="pl-10"
+                  />
                 </div>
+                <Button
+                  onClick={() => handleSearch('companies')}
+                  disabled={searchLoading}
+                  style={{ backgroundColor: '#102B51' }}
+                  className="text-white"
+                >
+                  {searchLoading ? 'Searching...' : t.searchCompanies}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="gap-2"
+                >
+                  <Filter className="w-4 h-4" />
+                </Button>
               </div>
 
-              {searchResults.length === 0 ? (
-                <Card className="border-dashed">
-                  <CardContent className="py-12 text-center">
-                    <Building2 className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-semibold mb-2">Search for Companies</h3>
-                    <p className="text-muted-foreground">
-                      Enter a search term to find companies that match your ideal customer profile.
-                    </p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="grid md:grid-cols-2 gap-4">
-                  {searchResults.map((company, i) => (
-                    <Card key={i} className="hover:shadow-md transition-shadow">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-semibold"
-                              style={{ backgroundColor: '#668DF7' }}
-                            >
-                              {company.name[0]}
-                            </div>
-                            <div>
-                              <CardTitle className="text-lg" style={{ color: '#102B51' }}>
-                                {company.name}
-                              </CardTitle>
-                              <p className="text-sm text-muted-foreground">{company.domain}</p>
-                            </div>
-                          </div>
-                          <Button
-                            size="sm"
-                            onClick={() => handleSaveLead(company)}
-                            style={{ backgroundColor: '#10B981' }}
-                            className="text-white"
-                          >
-                            <Plus className="w-4 h-4 mr-1" /> Save
-                          </Button>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm text-muted-foreground mb-4">{company.description}</p>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div className="flex items-center gap-2">
-                            <Briefcase className="w-4 h-4 text-muted-foreground" />
-                            <span>{company.industry}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Users className="w-4 h-4 text-muted-foreground" />
-                            <span>{company.size} employees</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <MapPin className="w-4 h-4 text-muted-foreground" />
-                            <span>{company.location}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="w-4 h-4 text-muted-foreground" />
-                            <span>{company.revenue}</span>
-                          </div>
-                        </div>
-                        {company.technologies.length > 0 && (
-                          <div className="mt-4 flex flex-wrap gap-1">
-                            {company.technologies.map((tech, j) => (
-                              <Badge key={j} variant="secondary" className="text-xs">
-                                {tech}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                        {company.website && (
-                          <a
-                            href={company.website}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-4 inline-flex items-center gap-1 text-sm hover:underline"
-                            style={{ color: '#668DF7' }}
-                          >
-                            Visit website <ExternalLink className="w-3 h-3" />
-                          </a>
-                        )}
+              <Tabs defaultValue="companies" className="w-full">
+                <TabsList className="grid w-full max-w-md grid-cols-2">
+                  <TabsTrigger value="companies">{t.companies}</TabsTrigger>
+                  <TabsTrigger value="contacts">{t.myLeads}</TabsTrigger>
+                </TabsList>
+                <TabsContent value="companies" className="mt-6">
+                  {searchResults.length === 0 ? (
+                    <Card className="border-dashed">
+                      <CardContent className="py-12 text-center">
+                        <Building2 className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                        <h3 className="text-lg font-semibold mb-2">{t.searchCompanies}</h3>
+                        <p className="text-muted-foreground">
+                          Enter a search query to find companies
+                        </p>
                       </CardContent>
                     </Card>
-                  ))}
-                </div>
-              )}
-
-              {/* Contacts Section */}
-              {searchContacts.length > 0 && (
-                <div className="mt-8">
-                  <h2 className="text-xl font-semibold mb-4" style={{ color: '#102B51' }}>
-                    Key Contacts
-                  </h2>
-                  <div className="grid md:grid-cols-3 gap-4">
-                    {searchContacts.map((contact, i) => (
-                      <Card key={i}>
-                        <CardContent className="pt-4">
-                          <div className="flex items-center gap-3 mb-3">
-                            <Avatar className="w-10 h-10">
-                              <AvatarFallback style={{ backgroundColor: '#102B51', color: 'white' }}>
-                                {contact.name.split(' ').map(n => n[0]).join('')}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <p className="font-medium" style={{ color: '#102B51' }}>{contact.name}</p>
-                              <p className="text-sm text-muted-foreground">{contact.title}</p>
-                            </div>
-                          </div>
-                          <div className="space-y-2 text-sm">
-                            {contact.email && (
-                              <p className="flex items-center gap-2 text-muted-foreground">
-                                <Mail className="w-4 h-4" />
-                                {contact.email}
-                              </p>
-                            )}
-                            {contact.phone && (
-                              <p className="flex items-center gap-2 text-muted-foreground">
-                                <Phone className="w-4 h-4" />
-                                {contact.phone}
-                              </p>
-                            )}
-                            {contact.linkedIn && (
-                              <a
-                                href={contact.linkedIn}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 hover:underline"
-                                style={{ color: '#668DF7' }}
+                  ) : (
+                    <div className="grid gap-4">
+                      {searchResults.map((company, i) => (
+                        <Card key={i} className="hover:shadow-md transition-shadow">
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-start gap-4">
+                                <div
+                                  className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-semibold"
+                                  style={{ backgroundColor: '#668DF7' }}
+                                >
+                                  {company.name[0]}
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <h3 className="font-semibold" style={{ color: '#102B51' }}>
+                                      {company.name}
+                                    </h3>
+                                    <a
+                                      href={company.website}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-muted-foreground hover:text-primary"
+                                    >
+                                      <ExternalLink className="w-4 h-4" />
+                                    </a>
+                                  </div>
+                                  <p className="text-sm text-muted-foreground">{company.description}</p>
+                                  <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                                    <span className="flex items-center gap-1">
+                                      <Briefcase className="w-3 h-3" />
+                                      {company.industry}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <MapPin className="w-3 h-3" />
+                                      {company.location}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <Users className="w-3 h-3" />
+                                      {company.size}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <DollarSign className="w-3 h-3" />
+                                      {company.revenue}
+                                    </span>
+                                  </div>
+                                  <div className="flex gap-1 mt-2 flex-wrap">
+                                    {company.technologies.map((tech) => (
+                                      <Badge key={tech} variant="secondary" className="text-xs">
+                                        {tech}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                              <Button
+                                onClick={() => handleSaveLead(company)}
+                                size="sm"
+                                style={{ backgroundColor: '#668DF7' }}
+                                className="text-white"
                               >
-                                <Linkedin className="w-4 h-4" />
-                                LinkedIn Profile
-                              </a>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              )}
+                                <Plus className="w-4 h-4 mr-1" />
+                                {t.myLeads}
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
+                <TabsContent value="contacts" className="mt-6">
+                  {searchContacts.length === 0 ? (
+                    <Card className="border-dashed">
+                      <CardContent className="py-12 text-center">
+                        <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                        <h3 className="text-lg font-semibold mb-2">Search Contacts</h3>
+                        <p className="text-muted-foreground">
+                          Enter a search query to find contacts
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="grid gap-4">
+                      {searchContacts.map((contact, i) => (
+                        <Card key={i} className="hover:shadow-md transition-shadow">
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-start gap-4">
+                                <Avatar className="w-12 h-12">
+                                  <AvatarFallback style={{ backgroundColor: '#668DF7', color: 'white' }}>
+                                    {contact.name.split(' ').map(n => n[0]).join('')}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <h3 className="font-semibold" style={{ color: '#102B51' }}>
+                                    {contact.name}
+                                  </h3>
+                                  <p className="text-sm text-muted-foreground">{contact.title}</p>
+                                  <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                                    {contact.email && (
+                                      <a href={`mailto:${contact.email}`} className="flex items-center gap-1 hover:text-primary">
+                                        <Mail className="w-3 h-3" />
+                                        {contact.email}
+                                      </a>
+                                    )}
+                                    {contact.phone && (
+                                      <span className="flex items-center gap-1">
+                                        <Phone className="w-3 h-3" />
+                                        {contact.phone}
+                                      </span>
+                                    )}
+                                    {contact.linkedIn && (
+                                      <a
+                                        href={contact.linkedIn}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1 hover:text-primary"
+                                      >
+                                        <Linkedin className="w-3 h-3" />
+                                        LinkedIn
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <Button
+                                onClick={() => handleSaveLead(MOCK_COMPANIES[i % MOCK_COMPANIES.length], contact)}
+                                size="sm"
+                                style={{ backgroundColor: '#668DF7' }}
+                                className="text-white"
+                              >
+                                <Plus className="w-4 h-4 mr-1" />
+                                {t.myLeads}
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
             </div>
           )}
 
@@ -1218,13 +1757,16 @@ export default function Home() {
           {currentView === 'lists' && (
             <div className="max-w-4xl mx-auto">
               <div className="mb-6 flex items-center justify-between">
-                <p className="text-muted-foreground">{lists.length} lists</p>
+                <div>
+                  <p className="text-muted-foreground">{lists.length} lists</p>
+                </div>
                 <Button
                   onClick={() => setShowNewListModal(true)}
-                  style={{ backgroundColor: '#102B51' }}
-                  className="text-white"
+                  style={{ backgroundColor: '#668DF7' }}
+                  className="text-white gap-2"
                 >
-                  <Plus className="w-4 h-4 mr-2" /> New List
+                  <Plus className="w-4 h-4" />
+                  New List
                 </Button>
               </div>
 
@@ -1234,7 +1776,7 @@ export default function Home() {
                     <List className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                     <h3 className="text-lg font-semibold mb-2">No lists yet</h3>
                     <p className="text-muted-foreground mb-4">
-                      Create lists to organize your prospects by campaign, industry, or any criteria.
+                      Create lists to organize your leads by campaign, industry, or any criteria.
                     </p>
                     <Button
                       onClick={() => setShowNewListModal(true)}
@@ -1248,38 +1790,23 @@ export default function Home() {
               ) : (
                 <div className="grid gap-4">
                   {lists.map((list) => (
-                    <Card
-                      key={list.id}
-                      className="hover:shadow-md transition-shadow cursor-pointer"
-                      onClick={() => setSelectedList(list)}
-                    >
+                    <Card key={list.id} className="hover:shadow-md transition-shadow cursor-pointer">
                       <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div
-                              className="w-12 h-12 rounded-lg flex items-center justify-center"
-                              style={{ backgroundColor: '#E5E5E0' }}
-                            >
-                              <List className="w-6 h-6" style={{ color: '#102B51' }} />
-                            </div>
-                            <div>
-                              <h3 className="font-semibold" style={{ color: '#102B51' }}>{list.name}</h3>
-                              <p className="text-sm text-muted-foreground">
-                                {list.description || 'No description'}
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {list.leads?.length || 0} leads
-                              </p>
-                            </div>
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="font-semibold" style={{ color: '#102B51' }}>{list.name}</h3>
+                            {list.description && (
+                              <p className="text-sm text-muted-foreground mt-1">{list.description}</p>
+                            )}
+                            <p className="text-sm text-muted-foreground mt-2">
+                              {list.leads?.length || 0} leads
+                            </p>
                           </div>
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDeleteList(list.id)
-                            }}
-                            className="text-red-500 hover:text-red-600"
+                            onClick={() => handleDeleteList(list.id)}
+                            className="text-red-500 hover:text-red-700"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -1289,25 +1816,67 @@ export default function Home() {
                   ))}
                 </div>
               )}
+
+              {/* New List Modal */}
+              <Dialog open={showNewListModal} onOpenChange={setShowNewListModal}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create New List</DialogTitle>
+                    <DialogDescription>Organize your leads into custom lists.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label>List Name</Label>
+                      <Input
+                        placeholder="e.g., Q1 Outreach Campaign"
+                        value={newListName}
+                        onChange={(e) => setNewListName(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label>Description (Optional)</Label>
+                      <Input
+                        placeholder="Brief description of this list"
+                        value={newListDescription}
+                        onChange={(e) => setNewListDescription(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <Button variant="outline" onClick={() => setShowNewListModal(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleCreateList} style={{ backgroundColor: '#102B51' }} className="text-white">
+                        Create List
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           )}
+
+          {/* Analytics View */}
+          {currentView === 'analytics' && <AnalyticsView />}
+
+          {/* Email Sequences View */}
+          {currentView === 'sequences' && <EmailSequencesView />}
 
           {/* Pricing View */}
           {currentView === 'pricing' && (
             <div className="max-w-5xl mx-auto">
               <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold mb-2" style={{ color: '#102B51' }}>
-                  Upgrade Your Plan
+                <h2 className="text-3xl font-bold mb-4" style={{ color: '#102B51' }}>
+                  {t.pricingTitle}
                 </h2>
-                <p className="text-muted-foreground">
-                  Get more credits to power your prospecting
+                <p className="text-lg" style={{ color: '#1A2B49' }}>
+                  {t.pricingSubtitle}
                 </p>
               </div>
               <div className="grid md:grid-cols-3 gap-6">
                 {PRICING_PLANS.map((plan, index) => (
                   <Card
                     key={index}
-                    className={`relative ${plan.popular ? 'border-2 scale-105' : ''}`}
+                    className={`relative ${plan.popular ? 'border-2' : ''}`}
                     style={{ borderColor: plan.popular ? '#668DF7' : undefined }}
                   >
                     {plan.popular && (
@@ -1315,19 +1884,21 @@ export default function Home() {
                         className="absolute -top-3 left-1/2 transform -translate-x-1/2 px-3 py-1 rounded-full text-sm text-white"
                         style={{ backgroundColor: '#668DF7' }}
                       >
-                        Most Popular
+                        {t.mostPopular}
                       </div>
                     )}
                     <CardHeader className="text-center">
-                      <CardTitle style={{ color: '#102B51' }}>{plan.name}</CardTitle>
+                      <CardTitle style={{ color: '#102B51' }}>
+                        {plan.name === 'Starter' ? t.starterPlan : plan.name === 'Professional' ? t.professionalPlan : t.enterprisePlan}
+                      </CardTitle>
                       <div className="mt-4">
                         <span className="text-4xl font-bold" style={{ color: '#102B51' }}>
                           ${plan.price}
                         </span>
-                        {plan.price > 0 && <span className="text-muted-foreground">/month</span>}
+                        {plan.price > 0 && <span className="text-muted-foreground">{t.perMonth}</span>}
                       </div>
                       <p className="text-sm mt-2" style={{ color: '#1A2B49' }}>
-                        {formatNumber(plan.credits)} credits included
+                        {formatNumber(plan.credits)} {t.creditsIncluded}
                       </p>
                     </CardHeader>
                     <CardContent>
@@ -1335,7 +1906,7 @@ export default function Home() {
                         {plan.features.map((feature, i) => (
                           <li key={i} className="flex items-center gap-2" style={{ color: '#1A2B49' }}>
                             <Check className="w-4 h-4" style={{ color: '#10B981' }} />
-                            {feature}
+                            {t[feature as keyof typeof t]}
                           </li>
                         ))}
                       </ul>
@@ -1345,9 +1916,8 @@ export default function Home() {
                         className="w-full"
                         variant={plan.popular ? 'default' : 'outline'}
                         style={{ backgroundColor: plan.popular ? '#102B51' : undefined }}
-                        disabled={user?.plan === plan.name.toLowerCase()}
                       >
-                        {user?.plan === plan.name.toLowerCase() ? 'Current Plan' : 'Upgrade'}
+                        {plan.price === 0 ? 'Current Plan' : 'Upgrade'}
                       </Button>
                     </CardFooter>
                   </Card>
@@ -1358,77 +1928,16 @@ export default function Home() {
         </div>
       </main>
 
-      {/* New List Modal */}
-      <Dialog open={showNewListModal} onOpenChange={setShowNewListModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create New List</DialogTitle>
-            <DialogDescription>Organize your leads into lists for better management.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="list-name">List Name</Label>
-              <Input
-                id="list-name"
-                placeholder="e.g., Q1 Outreach Campaign"
-                value={newListName}
-                onChange={(e) => setNewListName(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="list-description">Description (Optional)</Label>
-              <Input
-                id="list-description"
-                placeholder="Brief description of this list"
-                value={newListDescription}
-                onChange={(e) => setNewListDescription(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setShowNewListModal(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleCreateList}
-                disabled={!newListName.trim()}
-                style={{ backgroundColor: '#102B51' }}
-                className="text-white"
-              >
-                Create List
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* List Detail Modal */}
-      <Dialog open={!!selectedList} onOpenChange={() => setSelectedList(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{selectedList?.name}</DialogTitle>
-            <DialogDescription>{selectedList?.description}</DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="max-h-96">
-            {selectedList?.leads?.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground">
-                No leads in this list yet
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {selectedList?.leads?.map((lead) => (
-                  <div key={lead.id} className="flex items-center justify-between p-3 rounded-lg border">
-                    <div>
-                      <p className="font-medium">{lead.companyName}</p>
-                      <p className="text-sm text-muted-foreground">{lead.contactName}</p>
-                    </div>
-                    <Badge variant="outline">{lead.status}</Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
+      {/* Click outside to close dropdowns */}
+      {(showLangDropdown || showNotifications) && (
+        <div 
+          className="fixed inset-0 z-40" 
+          onClick={() => {
+            setShowLangDropdown(false)
+            setShowNotifications(false)
+          }}
+        />
+      )}
     </div>
   )
 }
