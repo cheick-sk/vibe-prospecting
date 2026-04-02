@@ -1,54 +1,233 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { cookies } from 'next/headers'
+import { AFRICAN_COMPANIES, AFRICAN_CONTACTS, GOVERNMENT_CONTACTS } from '@/lib/african-data'
 
-const SYSTEM_PROMPT = `You are Vibe AI, an expert B2B prospecting assistant focused on the African market, especially Guinea. You help users find and qualify potential business prospects through natural conversation.
+// Simple keyword-based response generator (no external AI needed - saves resources)
+function generateResponse(message: string): string {
+  const lowerMessage = message.toLowerCase()
+  
+  // Guinea companies
+  if (lowerMessage.includes('guinée') || lowerMessage.includes('guinea') || lowerMessage.includes('guinéen')) {
+    if (lowerMessage.includes('entreprise') || lowerMessage.includes('company') || lowerMessage.includes('société')) {
+      const guineaCompanies = AFRICAN_COMPANIES.filter(c => c.country === 'GN')
+      return `Voici les principales entreprises en Guinée :
 
-Your capabilities include:
-1. Understanding ideal customer profiles (ICP) from natural language descriptions
-2. Suggesting African companies and government organizations that match the user's criteria
-3. Helping identify decision-makers and contact information
-4. Providing insights about company technologies, size, revenue, and industry
-5. Qualifying leads based on intent signals and fit
+**Entreprises Minières :**
+${guineaCompanies.filter(c => c.industry === 'Mines').map(c => `• **${c.name}** - ${c.sector}\n  📍 ${c.location}\n  🌐 ${c.website}`).join('\n\n')}
 
-Focus areas:
-- Guinea and West African markets
-- Government ministries and public sector organizations
-- African startups and SMEs
-- Mining, agriculture, energy, and telecom sectors
+**Télécommunications :**
+${guineaCompanies.filter(c => c.industry === 'Télécommunications').map(c => `• **${c.name}** - ${c.sector}\n  📍 ${c.location}\n  🌐 ${c.website}`).join('\n\n')}
 
-Guidelines:
-- Be conversational and helpful
-- Ask clarifying questions when needed
-- Provide structured information when presenting companies or contacts
-- When the user asks to find companies, suggest specific companies with details
-- Format company information clearly with: Company Name, Industry, Size, Location, Website
-- When discussing contacts, include: Name, Title, Email (if available), LinkedIn
-- Be proactive in suggesting next steps
-- Use a professional but friendly tone
+**Banque & Finance :**
+${guineaCompanies.filter(c => c.industry === 'Banque & Finance').map(c => `• **${c.name}** - ${c.sector}\n  📍 ${c.location}\n  🌐 ${c.website}`).join('\n\n')}
 
-Always be ready to help users refine their search and find the best prospects for their business.`
-
-// Dynamic import for z-ai-web-dev-sdk to handle initialization errors
-async function getAIResponse(messages: Array<{role: string; content: string}>): Promise<string> {
-  try {
-    const ZAI = (await import('z-ai-web-dev-sdk')).default
-    const zai = await ZAI.create()
+Voulez-vous plus de détails sur une entreprise spécifique ?`
+    }
     
-    const completion = await zai.chat.completions.create({
-      messages: messages.map(m => ({
-        role: m.role as 'system' | 'user' | 'assistant',
-        content: m.content
-      })),
-      temperature: 0.7,
-      max_tokens: 2000
-    })
+    if (lowerMessage.includes('contact') || lowerMessage.includes('décideur') || lowerMessage.includes('directeur')) {
+      const guineaContacts = AFRICAN_CONTACTS.filter(c => c.country === 'GN')
+      return `Voici des contacts clés en Guinée :
 
-    return completion.choices[0]?.message?.content || 'Je ne peux pas générer de réponse pour le moment.'
-  } catch (error) {
-    console.error('AI initialization or call error:', error)
-    throw error
+**Contacts Gouvernementaux :**
+${GOVERNMENT_CONTACTS.filter(c => c.country === 'GN').slice(0, 3).map(c => `• **${c.name}**
+  📞 ${c.phone}
+  📧 ${c.email}
+  🌐 ${c.website}`).join('\n\n')}
+
+**Contacts Privés :**
+${guineaContacts.map(c => `• **${c.name}** - ${c.title}
+  🏢 ${c.company}
+  📧 ${c.email}
+  📞 ${c.phone}`).join('\n\n')}
+
+Souhaitez-vous des contacts dans un secteur spécifique ?`
+    }
+    
+    if (lowerMessage.includes('ministère') || lowerMessage.includes('gouvernement')) {
+      return `Voici les principaux ministères en Guinée :
+
+**Ministères Clés :**
+• **Ministère de l'Économie et des Finances**
+  📍 Conakry, Guinée
+  🌐 https://finances.gov.gn
+
+• **Ministère des Mines et de la Géologie**
+  📍 Conakry, Guinée
+  📞 +224 664 30 00 00
+  🌐 https://mines.gov.gn
+
+• **Ministère de l'Énergie, de l'Hydraulique et des Hydrocarbures**
+  📍 Conakry, Guinée
+  🌐 https://energie.gov.gn
+
+• **Ministère de l'Agriculture et de l'Élevage**
+  📍 Conakry, Guinée
+  🌐 https://agriculture.gov.gn
+
+• **Ministère du Commerce, de l'Industrie et des PME**
+  📍 Conakry, Guinée
+
+**Agences :**
+• **APIP** - Agence Guinéenne de Promotion des Investissements
+  📞 +224 664 60 00 00
+  🌐 https://apip.gov.gn
+
+Voulez-vous les coordonnées d'un ministère spécifique ?`
+    }
+    
+    return `Je peux vous aider avec les informations sur la Guinée :
+
+**Entreprises disponibles :**
+• Guinea Alumina Corporation (Mines)
+• CBG - Compagnie des Bauxites de Guinée (Mines)
+• Orange Guinée (Télécommunications)
+• Guinéenne de Banque (Finance)
+• Électricité de Guinée (Énergie)
+
+**Gouvernement :**
+• Présidence de la République
+• Primature
+• Ministères (Économie, Mines, Énergie, Agriculture...)
+
+**Comment puis-je vous aider ?**
+• "Montrez-moi les entreprises minières en Guinée"
+• "Donnez-moi les contacts des ministères"
+• "Quels sont les décideurs du secteur télécom ?"`
   }
+  
+  // Mining sector
+  if (lowerMessage.includes('mine') || lowerMessage.includes('minier') || lowerMessage.includes('bauxite') || lowerMessage.includes('or')) {
+    return `**Secteur Minier en Afrique de l'Ouest :**
+
+**Guinée - Bauxite :**
+• **CBG** (Compagnie des Bauxites de Guinée)
+  📍 Kamsar, Guinée | Plus grand producteur
+  🌐 https://cbg.gn
+
+• **Guinea Alumina Corporation**
+  📍 Conakry, Guinée
+  🌐 https://guineaalumina.com
+
+**Sénégal - Or :**
+• **Société des Mines de Falémé**
+  📍 Sénégal oriental
+
+**Contacts Utiles :**
+• **Ministère des Mines et de la Géologie (Guinée)**
+  📞 +224 664 30 00 00
+  🌐 https://mines.gov.gn
+
+Voulez-vous plus d'informations ?`
+  }
+  
+  // Telecom sector
+  if (lowerMessage.includes('télécom') || lowerMessage.includes('telecom') || lowerMessage.includes('mobile') || lowerMessage.includes('orange') || lowerMessage.includes('mtn')) {
+    return `**Secteur des Télécommunications en Afrique :**
+
+**Guinée :**
+• **Orange Guinée** - Leader mobile
+  📍 Conakry | 🌐 https://orange-guinee.com
+
+• **MTN Guinée** - Opérateur mobile
+  📍 Conakry
+
+**Sénégal :**
+• **Sonatel (Orange)** - Leader régional
+  📍 Dakar | 🌐 https://sonatel.sn
+
+**Côte d'Ivoire :**
+• **Orange Côte d'Ivoire** - Leader
+  📍 Abidjan | 🌐 https://orange.ci
+
+**Nigeria :**
+• **MTN Nigeria** - Plus grand opérateur
+  📍 Lagos | 🌐 https://mtn.ng
+
+Quel opérateur vous intéresse ?`
+  }
+  
+  // Banking sector
+  if (lowerMessage.includes('banque') || lowerMessage.includes('bank') || lowerMessage.includes('finance')) {
+    return `**Secteur Bancaire en Afrique de l'Ouest :**
+
+**Guinée :**
+• **Guinéenne de Banque (BGN)**
+  📍 Conakry | 🌐 https://guib.net
+
+• **BICIGUI** (Groupe BNP Paribas)
+  📍 Conakry
+
+• **Ecobank Guinée**
+  📍 Conakry
+
+**Sénégal :**
+• **Société Générale Sénégal**
+  📍 Dakar
+
+• **CBAO** (Groupe Attijari)
+  📍 Dakar
+
+**Services Mobile Money :**
+• Orange Money
+• MTN Mobile Money
+• Wave
+
+Voulez-vous les contacts d'une banque spécifique ?`
+  }
+  
+  // Energy sector
+  if (lowerMessage.includes('énergie') || lowerMessage.includes('energie') || lowerMessage.includes('électricité') || lowerMessage.includes('electricite')) {
+    return `**Secteur de l'Énergie en Afrique de l'Ouest :**
+
+**Guinée :**
+• **Électricité de Guinée (EDG)**
+  📍 Conakry
+  🌐 https://edg-guinee.com
+
+• **Société des Eaux de Guinée (SEG)**
+  📍 Conakry
+
+**Sénégal :**
+• **SENELEC** - Électricité
+  📍 Dakar | 🌐 https://senelec.sn
+
+**Côte d'Ivoire :**
+• **CIE** - Compagnie Ivoirienne d'Électricité
+  📍 Abidjan | 🌐 https://cie.ci
+
+**Énergies Renouvelables :**
+• Projets solaires en cours
+• Hydroélectricité (barrages)
+
+Voulez-vous plus de détails ?`
+  }
+  
+  // Default response
+  return `Je suis votre assistant de prospection B2B pour l'Afrique. Je peux vous aider avec :
+
+**Pays disponibles :**
+• Guinée 🇬🇳
+• Sénégal 🇸🇳
+• Côte d'Ivoire 🇨🇮
+• Nigeria 🇳🇬
+• Ghana 🇬🇭
+
+**Secteurs :**
+• Mines & Carrières
+• Télécommunications
+• Banque & Finance
+• Énergie
+• Agriculture
+• BTP & Construction
+
+**Exemples de questions :**
+• "Entreprises minières en Guinée"
+• "Contacts des ministères guinéens"
+• "Opérateurs télécom en Afrique de l'Ouest"
+• "Banques en Guinée"
+
+Comment puis-je vous aider ?`
 }
 
 export async function POST(request: NextRequest) {
@@ -64,28 +243,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { message, chatId, history } = body
+    const { message, chatId } = body
 
     if (!message) {
       return NextResponse.json({ error: 'Message requis' }, { status: 400 })
     }
 
-    // Get user to check credits
-    let user
-    try {
-      user = await db.user.findUnique({
-        where: { id: userId }
-      })
-    } catch (dbError) {
-      console.error('Database error:', dbError)
-      return NextResponse.json({ 
-        error: 'Erreur de connexion à la base de données. Veuillez réessayer.' 
-      }, { status: 503 })
-    }
+    // Get user
+    const user = await db.user.findUnique({
+      where: { id: userId }
+    })
 
     if (!user) {
       return NextResponse.json({ 
-        error: 'Utilisateur non trouvé. Veuillez vous reconnecter.',
+        error: 'Utilisateur non trouvé.',
         requiresAuth: true 
       }, { status: 401 })
     }
@@ -93,13 +264,13 @@ export async function POST(request: NextRequest) {
     // Check credits
     if (user.credits <= 0) {
       return NextResponse.json(
-        { error: 'Crédits insuffisants. Veuillez mettre à niveau votre plan.' },
+        { error: 'Crédits insuffisants.' },
         { status: 403 }
       )
     }
 
     // Create or get chat
-    let chat
+    let chat = null
     try {
       if (chatId) {
         chat = await db.chat.findUnique({
@@ -112,7 +283,7 @@ export async function POST(request: NextRequest) {
         chat = await db.chat.create({
           data: {
             userId,
-            title: message.substring(0, 50) + (message.length > 50 ? '...' : ''),
+            title: message.substring(0, 50),
             messages: {
               create: { role: 'user', content: message }
             }
@@ -125,60 +296,20 @@ export async function POST(request: NextRequest) {
         })
       }
     } catch (dbError) {
-      console.error('Chat database error:', dbError)
+      console.error('DB error:', dbError)
     }
 
-    // Build messages for AI
-    const messages = [
-      { role: 'system', content: SYSTEM_PROMPT },
-      ...(history || chat?.messages || []).map((m: { role: string; content: string }) => ({
-        role: m.role,
-        content: m.content
-      })),
-      { role: 'user', content: message }
-    ]
+    // Generate response using local data (no external AI - saves memory)
+    const assistantMessage = generateResponse(message)
 
-    // Call AI
-    let assistantMessage: string
+    // Deduct credit
     try {
-      assistantMessage = await getAIResponse(messages)
-    } catch (aiError) {
-      console.error('AI error:', aiError)
-      
-      // Return a helpful fallback response instead of error
-      assistantMessage = `Je comprends que vous recherchez des contacts d'entreprises guinéennes. 
-
-Voici quelques pistes pour trouver des décideurs en Guinée :
-
-**Entreprises majeures en Guinée :**
-- **Guinea Alumina Corporation (GAC)** - Industrie minière
-- **CBG (Compagnie des Bauxites de Guinée)** - Extraction bauxite
-- **Orange Guinée** - Télécommunications
-- **MTN Guinée** - Télécommunications
-
-**Ministères clés :**
-- Ministère des Mines et de la Géologie
-- Ministère de l'Agriculture
-- Ministère de l'Énergie
-
-**Conseils pour contacter les décideurs :**
-1. Utilisez LinkedIn pour identifier les directeurs et responsables
-2. Contactez les fédérations professionnelles
-3. Participez aux événements d'affaires à Conakry
-
-Voulez-vous que je vous aide à cibler un secteur spécifique ?`
-    }
-
-    // Deduct credit only on success
-    if (user.credits > 0) {
-      try {
-        await db.user.update({
-          where: { id: userId },
-          data: { credits: { decrement: 1 } }
-        })
-      } catch (e) {
-        console.error('Credit deduction error:', e)
-      }
+      await db.user.update({
+        where: { id: userId },
+        data: { credits: { decrement: 1 } }
+      })
+    } catch (e) {
+      console.error('Credit error:', e)
     }
 
     // Save assistant message
@@ -187,12 +318,8 @@ Voulez-vous que je vous aide à cibler un secteur spécifique ?`
         await db.chatMessage.create({
           data: { chatId: chat.id, role: 'assistant', content: assistantMessage }
         })
-        await db.chat.update({
-          where: { id: chat.id },
-          data: { updatedAt: new Date() }
-        })
       } catch (e) {
-        console.error('Save message error:', e)
+        console.error('Save error:', e)
       }
     }
 
@@ -204,7 +331,7 @@ Voulez-vous que je vous aide à cibler un secteur spécifique ?`
   } catch (error) {
     console.error('Chat error:', error)
     return NextResponse.json(
-      { error: 'Erreur lors du traitement du message. Veuillez réessayer.' },
+      { error: 'Erreur lors du traitement.' },
       { status: 500 }
     )
   }
@@ -217,10 +344,7 @@ export async function GET(request: NextRequest) {
     const userId = cookieStore.get('userId')?.value
 
     if (!userId) {
-      return NextResponse.json({ 
-        error: 'Authentification requise',
-        requiresAuth: true 
-      }, { status: 401 })
+      return NextResponse.json({ chats: [] })
     }
 
     const { searchParams } = new URL(request.url)
@@ -231,33 +355,19 @@ export async function GET(request: NextRequest) {
         where: { id: chatId, userId },
         include: { messages: { orderBy: { createdAt: 'asc' } } }
       })
-
-      if (!chat) {
-        return NextResponse.json({ error: 'Conversation non trouvée' }, { status: 404 })
-      }
-
       return NextResponse.json({ chat })
     }
 
-    // Get all chats
     const chats = await db.chat.findMany({
       where: { userId },
       orderBy: { updatedAt: 'desc' },
-      select: {
-        id: true,
-        title: true,
-        createdAt: true,
-        updatedAt: true
-      }
+      select: { id: true, title: true, createdAt: true, updatedAt: true }
     })
 
     return NextResponse.json({ chats })
   } catch (error) {
     console.error('Get chats error:', error)
-    return NextResponse.json(
-      { error: 'Erreur lors de la récupération des conversations' },
-      { status: 500 }
-    )
+    return NextResponse.json({ chats: [] })
   }
 }
 
@@ -268,17 +378,14 @@ export async function DELETE(request: NextRequest) {
     const userId = cookieStore.get('userId')?.value
 
     if (!userId) {
-      return NextResponse.json({ 
-        error: 'Authentification requise',
-        requiresAuth: true 
-      }, { status: 401 })
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
     const chatId = searchParams.get('chatId')
 
     if (!chatId) {
-      return NextResponse.json({ error: 'ID de conversation requis' }, { status: 400 })
+      return NextResponse.json({ error: 'ID requis' }, { status: 400 })
     }
 
     await db.chat.delete({
@@ -287,10 +394,6 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Delete chat error:', error)
-    return NextResponse.json(
-      { error: 'Erreur lors de la suppression' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur' }, { status: 500 })
   }
 }
