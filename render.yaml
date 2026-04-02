@@ -5,8 +5,8 @@ services:
     region: oregon
     plan: free
     branch: main
-    buildCommand: bunx prisma generate && bun run build
-    startCommand: bunx prisma migrate deploy && NODE_ENV=production node .next/standalone/server.js
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && NODE_ENV=production node .next/standalone/server.js
     envVars:
       - key: NODE_ENV
         value: production
