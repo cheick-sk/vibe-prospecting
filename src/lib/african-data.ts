@@ -997,3 +997,7 @@ export const AFRICAN_COMMUNITIES = [
     website: 'https://au.int'
   }
 ]
+
+// Exports for search functionality
+export const africanCompanies = AFRICAN_COMPANIES
+export const guineaCompanies = AFRICAN_COMPANIES.filter(c => c.country === 'GN')

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import ZAI from 'z-ai-web-dev-sdk'
 import { db } from '@/lib/db'
+import { africanCompanies, guineaCompanies } from '@/lib/african-data'
 
 interface SearchResult {
   url: string
@@ -11,6 +11,32 @@ interface SearchResult {
   rank: number
   date: string
   favicon: string
+}
+
+// Fallback to local data when web search is unavailable
+function getLocalCompanies(query: string) {
+  const searchTerms = query.toLowerCase().split(' ')
+  
+  const allCompanies = [...guineaCompanies, ...africanCompanies]
+  
+  return allCompanies
+    .filter(company => {
+      const searchText = `${company.name} ${company.industry} ${company.location} ${company.description}`.toLowerCase()
+      return searchTerms.some(term => searchText.includes(term))
+    })
+    .slice(0, 10)
+    .map(company => ({
+      name: company.name,
+      domain: company.website?.replace('https://', '').replace('http://', '') || '',
+      industry: company.industry,
+      size: company.size,
+      revenue: company.revenue,
+      location: company.location,
+      website: company.website,
+      logo: null,
+      description: company.description,
+      technologies: []
+    }))
 }
 
 // Parse company information from search results
@@ -29,7 +55,6 @@ function parseCompanyInfo(results: SearchResult[]) {
   }> = []
 
   for (const result of results) {
-    // Skip social media and generic sites
     if (result.host_name.includes('linkedin') || 
         result.host_name.includes('twitter') ||
         result.host_name.includes('facebook') ||
@@ -38,17 +63,16 @@ function parseCompanyInfo(results: SearchResult[]) {
       continue
     }
 
-    // Extract company info from snippet
     const name = result.name.replace(' - ', ' | ').split('|')[0].trim()
     const domain = result.host_name
     
     companies.push({
       name,
       domain,
-      industry: 'Technology', // Default, would be enriched
-      size: '50-200', // Default
-      revenue: '$1M-$10M', // Default
-      location: 'United States', // Default
+      industry: 'Technologie',
+      size: '50-200',
+      revenue: '$1M-$10M',
+      location: 'Afrique',
       website: `https://${domain}`,
       logo: null,
       description: result.snippet,
@@ -59,38 +83,22 @@ function parseCompanyInfo(results: SearchResult[]) {
   return companies.slice(0, 10)
 }
 
-// Parse contact information from search results
-function parseContactInfo(results: SearchResult[]) {
-  const contacts: Array<{
-    name: string
-    title: string
-    email: string | null
-    phone: string | null
-    linkedIn: string | null
-    photo: string | null
-    company: string
-  }> = []
-
-  for (const result of results) {
-    if (result.host_name.includes('linkedin')) {
-      // Extract name from LinkedIn result
-      const titleParts = result.name.split(' - ')
-      const name = titleParts[0].trim()
-      const title = titleParts[1]?.split('|')[0].trim() || 'Professional'
-      
-      contacts.push({
-        name,
-        title,
-        email: null,
-        phone: null,
-        linkedIn: result.url,
-        photo: null,
-        company: ''
-      })
-    }
+// Dynamic import for AI SDK
+async function performWebSearch(query: string): Promise<SearchResult[] | null> {
+  try {
+    const ZAI = (await import('z-ai-web-dev-sdk')).default
+    const zai = await ZAI.create()
+    
+    const searchResult = await zai.functions.invoke('web_search', {
+      query,
+      num: 15
+    })
+    
+    return searchResult as SearchResult[]
+  } catch (error) {
+    console.error('Web search error:', error)
+    return null
   }
-
-  return contacts.slice(0, 10)
 }
 
 export async function POST(request: NextRequest) {
@@ -99,17 +107,16 @@ export async function POST(request: NextRequest) {
     const userId = cookieStore.get('userId')?.value
 
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
-    // Check user credits
     const user = await db.user.findUnique({
       where: { id: userId }
     })
 
     if (!user || user.credits <= 0) {
       return NextResponse.json(
-        { error: 'Insufficient credits' },
+        { error: 'Crédits insuffisants' },
         { status: 403 }
       )
     }
@@ -118,23 +125,26 @@ export async function POST(request: NextRequest) {
     const { type, query } = body
 
     if (!query) {
-      return NextResponse.json({ error: 'Query required' }, { status: 400 })
+      return NextResponse.json({ error: 'Requête requise' }, { status: 400 })
     }
 
-    const zai = await ZAI.create()
     let searchQuery = query
-
-    // Enhance query based on search type
     if (type === 'companies') {
-      searchQuery = `${query} company profile business`
+      searchQuery = `${query} entreprise profil business`
     } else if (type === 'contacts') {
-      searchQuery = `${query} CEO founder executive LinkedIn`
+      searchQuery = `${query} CEO directeur LinkedIn`
     }
 
-    const searchResult = await zai.functions.invoke('web_search', {
-      query: searchQuery,
-      num: 15
-    })
+    // Try web search, fallback to local data
+    const searchResult = await performWebSearch(searchQuery)
+    
+    let companies = []
+    if (searchResult) {
+      companies = parseCompanyInfo(searchResult)
+    } else {
+      // Use local African/Guinean data as fallback
+      companies = getLocalCompanies(query)
+    }
 
     // Deduct credits
     await db.user.update({
@@ -142,29 +152,15 @@ export async function POST(request: NextRequest) {
       data: { credits: { decrement: 2 } }
     })
 
-    if (type === 'companies') {
-      const companies = parseCompanyInfo(searchResult as SearchResult[])
-      return NextResponse.json({
-        companies,
-        credits: user.credits - 2
-      })
-    } else if (type === 'contacts') {
-      const contacts = parseContactInfo(searchResult as SearchResult[])
-      return NextResponse.json({
-        contacts,
-        credits: user.credits - 2
-      })
-    }
-
-    // Default: return raw results
     return NextResponse.json({
-      results: searchResult,
-      credits: user.credits - 2
+      companies,
+      credits: user.credits - 2,
+      source: searchResult ? 'web' : 'local'
     })
   } catch (error) {
     console.error('Search error:', error)
     return NextResponse.json(
-      { error: 'Search failed' },
+      { error: 'Erreur lors de la recherche' },
       { status: 500 }
     )
   }
@@ -176,7 +172,7 @@ export async function GET(request: NextRequest) {
     const userId = cookieStore.get('userId')?.value
 
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
@@ -184,63 +180,51 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type') || 'companies'
 
     if (!query) {
-      return NextResponse.json({ error: 'Query required' }, { status: 400 })
+      return NextResponse.json({ error: 'Requête requise' }, { status: 400 })
     }
 
-    // Check user credits
     const user = await db.user.findUnique({
       where: { id: userId }
     })
 
     if (!user || user.credits <= 0) {
       return NextResponse.json(
-        { error: 'Insufficient credits' },
+        { error: 'Crédits insuffisants' },
         { status: 403 }
       )
     }
 
-    const zai = await ZAI.create()
     let searchQuery = query
-
     if (type === 'companies') {
-      searchQuery = `${query} company profile business`
+      searchQuery = `${query} entreprise profil business`
     } else if (type === 'contacts') {
-      searchQuery = `${query} CEO founder executive LinkedIn`
+      searchQuery = `${query} CEO directeur LinkedIn`
     }
 
-    const searchResult = await zai.functions.invoke('web_search', {
-      query: searchQuery,
-      num: 15
-    })
+    // Try web search, fallback to local data
+    const searchResult = await performWebSearch(searchQuery)
+    
+    let companies = []
+    if (searchResult) {
+      companies = parseCompanyInfo(searchResult)
+    } else {
+      companies = getLocalCompanies(query)
+    }
 
-    // Deduct credits
     await db.user.update({
       where: { id: userId },
       data: { credits: { decrement: 2 } }
     })
 
-    if (type === 'companies') {
-      const companies = parseCompanyInfo(searchResult as SearchResult[])
-      return NextResponse.json({
-        companies,
-        credits: user.credits - 2
-      })
-    } else if (type === 'contacts') {
-      const contacts = parseContactInfo(searchResult as SearchResult[])
-      return NextResponse.json({
-        contacts,
-        credits: user.credits - 2
-      })
-    }
-
     return NextResponse.json({
-      results: searchResult,
-      credits: user.credits - 2
+      companies,
+      credits: user.credits - 2,
+      source: searchResult ? 'web' : 'local'
     })
   } catch (error) {
     console.error('Search error:', error)
     return NextResponse.json(
-      { error: 'Search failed' },
+      { error: 'Erreur lors de la recherche' },
       { status: 500 }
     )
   }
