@@ -55,7 +55,24 @@ export async function POST(request: NextRequest) {
 
     if (!email || !password) {
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: 'Email et mot de passe requis' },
+        { status: 400 }
+      )
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: 'Format email invalide' },
+        { status: 400 }
+      )
+    }
+
+    // Validate password length
+    if (password.length < 4) {
+      return NextResponse.json(
+        { error: 'Le mot de passe doit contenir au moins 4 caractères' },
         { status: 400 }
       )
     }
@@ -63,12 +80,12 @@ export async function POST(request: NextRequest) {
     if (action === 'signup') {
       // Check if user exists
       const existingUser = await db.user.findUnique({
-        where: { email }
+        where: { email: email.toLowerCase() }
       })
 
       if (existingUser) {
         return NextResponse.json(
-          { error: 'Email already registered' },
+          { error: 'Cet email est déjà enregistré' },
           { status: 400 }
         )
       }
@@ -77,7 +94,7 @@ export async function POST(request: NextRequest) {
       const hashedPassword = simpleHash(password)
       const newUser = await db.user.create({
         data: {
-          email,
+          email: email.toLowerCase(),
           password: hashedPassword,
           name: name || null,
           company: company || null,
@@ -109,12 +126,12 @@ export async function POST(request: NextRequest) {
     } else if (action === 'login') {
       // Find user
       const user = await db.user.findUnique({
-        where: { email }
+        where: { email: email.toLowerCase() }
       })
 
       if (!user) {
         return NextResponse.json(
-          { error: 'Invalid email or password' },
+          { error: 'Email ou mot de passe incorrect' },
           { status: 401 }
         )
       }
@@ -123,7 +140,7 @@ export async function POST(request: NextRequest) {
       const hashedPassword = simpleHash(password)
       if (user.password !== hashedPassword) {
         return NextResponse.json(
-          { error: 'Invalid email or password' },
+          { error: 'Email ou mot de passe incorrect' },
           { status: 401 }
         )
       }
@@ -157,13 +174,13 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: 'Invalid action' },
+      { error: 'Action invalide' },
       { status: 400 }
     )
   } catch (error) {
     console.error('Auth error:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Erreur serveur. Veuillez réessayer.' },
       { status: 500 }
     )
   }
