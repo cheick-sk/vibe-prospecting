@@ -19,13 +19,23 @@ import { Textarea } from '@/components/ui/textarea'
 import { 
   MessageSquare, Users, Building2, List, CreditCard, LogOut, Menu, X, 
   Send, Search, Plus, Trash2, ExternalLink, Mail, Phone, Linkedin,
-  Check, Sparkles, Target, Zap, Shield, ChevronRight, Star,
+  Check, Sparkles, Target, Zap, ChevronRight, Star,
   Bot, User, Briefcase, MapPin, Globe, DollarSign, Clock, TrendingUp,
   Download, FileSpreadsheet, Bell, Filter, BarChart3, MailPlus,
-  Languages, ChevronDown, XCircle, PieChart, Activity
+  Languages, ChevronDown, XCircle, PieChart, Activity, Landmark,
+  Flag, Building, FileText, Handshake
 } from 'lucide-react'
+import { 
+  AFRICAN_COUNTRIES, 
+  AFRICAN_INDUSTRIES, 
+  AFRICAN_COMPANIES, 
+  GOVERNMENT_CONTACTS,
+  AFRICAN_CONTACTS,
+  AFRICAN_COMMUNITIES,
+  GOVERNMENT_STRUCTURES
+} from '@/lib/african-data'
 
-// Format number with commas (consistent across server/client)
+// Format number with commas
 const formatNumber = (num: number): string => {
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 }
@@ -55,94 +65,6 @@ const PRICING_PLANS = [
   }
 ]
 
-// Features for landing page
-const FEATURES = [
-  { icon: Target, titleKey: 'featureAITargeting', descKey: 'featureAITargetingDesc' },
-  { icon: Building2, titleKey: 'featureCompanyIntel', descKey: 'featureCompanyIntelDesc' },
-  { icon: Users, titleKey: 'featureDecisionMakers', descKey: 'featureDecisionMakersDesc' },
-  { icon: Zap, titleKey: 'featureLightning', descKey: 'featureLightningDesc' }
-]
-
-// Industry options
-const INDUSTRIES = [
-  'Technology', 'Software', 'Finance', 'Healthcare', 'Manufacturing', 
-  'Retail', 'Education', 'Real Estate', 'Marketing', 'Consulting'
-]
-
-// Company size options
-const COMPANY_SIZES = ['1-10', '11-50', '51-200', '201-500', '501-1000', '1000+']
-
-// Revenue options
-const REVENUES = ['<$1M', '$1M-$5M', '$5M-$10M', '$10M-$50M', '$50M-$100M', '>$100M']
-
-// Mock companies for demo
-const MOCK_COMPANIES: Company[] = [
-  {
-    name: 'TechFlow Inc',
-    domain: 'techflow.io',
-    industry: 'Software Development',
-    size: '51-200',
-    revenue: '$5M-$10M',
-    location: 'San Francisco, CA',
-    website: 'https://techflow.io',
-    logo: null,
-    description: 'Leading provider of workflow automation solutions for enterprise teams.',
-    technologies: ['React', 'Node.js', 'AWS', 'PostgreSQL']
-  },
-  {
-    name: 'DataSync Solutions',
-    domain: 'datasync.co',
-    industry: 'Data Analytics',
-    size: '201-500',
-    revenue: '$10M-$50M',
-    location: 'Austin, TX',
-    website: 'https://datasync.co',
-    logo: null,
-    description: 'Enterprise data integration and analytics platform.',
-    technologies: ['Python', 'Kafka', 'Snowflake', 'GCP']
-  },
-  {
-    name: 'CloudSecure',
-    domain: 'cloudsecure.com',
-    industry: 'Cybersecurity',
-    size: '11-50',
-    revenue: '$1M-$5M',
-    location: 'New York, NY',
-    website: 'https://cloudsecure.com',
-    logo: null,
-    description: 'Cloud security compliance and monitoring platform.',
-    technologies: ['Go', 'Kubernetes', 'AWS', 'Terraform']
-  }
-]
-
-// Mock contacts for demo
-const MOCK_CONTACTS: Contact[] = [
-  {
-    name: 'Sarah Johnson',
-    title: 'VP of Engineering',
-    email: 'sarah@techflow.io',
-    phone: '+1 (555) 123-4567',
-    linkedIn: 'https://linkedin.com/in/sarahjohnson',
-    photo: null
-  },
-  {
-    name: 'Michael Chen',
-    title: 'CTO',
-    email: 'mchen@datasync.co',
-    phone: '+1 (555) 234-5678',
-    linkedIn: 'https://linkedin.com/in/michaelchen',
-    photo: null
-  },
-  {
-    name: 'Emily Rodriguez',
-    title: 'CEO & Founder',
-    email: 'emily@cloudsecure.com',
-    phone: '+1 (555) 345-6789',
-    linkedIn: 'https://linkedin.com/in/emilyrodriguez',
-    photo: null
-  }
-]
-
 export default function Home() {
   const { user, isAuthenticated, login, signup, logout, checkAuth, isLoading, error, setError } = useAuthStore()
   const {
@@ -151,7 +73,6 @@ export default function Home() {
     leads, setLeads, addLead, updateLead, deleteLead, leadsLoading, setLeadsLoading,
     lists, setLists, addList, deleteList, listsLoading, setListsLoading,
     searchResults, setSearchResults, searchContacts, setSearchContacts, searchLoading, setSearchLoading,
-    selectedLead, setSelectedLead, selectedList, setSelectedList,
     showLoginModal, showSignupModal, showNewListModal,
     setShowLoginModal, setShowSignupModal, setShowNewListModal,
     sidebarCollapsed, setSidebarCollapsed
@@ -175,6 +96,12 @@ export default function Home() {
   const [showFilters, setShowFilters] = useState(false)
   const [newTemplate, setNewTemplate] = useState({ name: '', subject: '', body: '' })
   const [showTemplateModal, setShowTemplateModal] = useState(false)
+  
+  // African market filters
+  const [selectedCountry, setSelectedCountry] = useState<string>('')
+  const [selectedSector, setSelectedSector] = useState<string>('')
+  const [selectedIndustry, setSelectedIndustry] = useState<string>('')
+  const [searchType, setSearchType] = useState<'companies' | 'government' | 'ministries' | 'contacts'>('companies')
 
   const chatEndRef = useRef<HTMLDivElement>(null)
 
@@ -289,39 +216,54 @@ export default function Home() {
     }
   }
 
-  const handleSearch = async (type: 'companies' | 'contacts') => {
-    if (!searchQuery.trim()) return
-
+  const handleAfricanSearch = () => {
     setSearchLoading(true)
-    try {
-      const response = await fetch('/api/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, query: searchQuery })
+    
+    let results: any[] = []
+    
+    if (searchType === 'companies') {
+      results = AFRICAN_COMPANIES.filter(company => {
+        const matchCountry = !selectedCountry || company.country === selectedCountry
+        const matchIndustry = !selectedIndustry || company.industry.includes(selectedIndustry)
+        const matchSector = !selectedSector || company.sector?.includes(selectedSector)
+        const matchQuery = !searchQuery || 
+          company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          company.industry.toLowerCase().includes(searchQuery.toLowerCase())
+        return matchCountry && matchIndustry && matchSector && matchQuery
       })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        if (type === 'companies') {
-          setSearchResults(data.companies.length > 0 ? data.companies : MOCK_COMPANIES)
-        } else {
-          setSearchContacts(data.contacts.length > 0 ? data.contacts : MOCK_CONTACTS)
-        }
-        if (user && data.credits !== undefined) {
-          useAuthStore.getState().updateCredits(data.credits)
-        }
-      }
-    } catch (error) {
-      console.error('Search error:', error)
-      if (type === 'companies') {
-        setSearchResults(MOCK_COMPANIES)
-      } else {
-        setSearchContacts(MOCK_CONTACTS)
-      }
-    } finally {
-      setSearchLoading(false)
+      setSearchResults(results)
+    } else if (searchType === 'government' || searchType === 'ministries') {
+      const govResults = GOVERNMENT_CONTACTS.filter(contact => {
+        const matchCountry = !selectedCountry || contact.country === selectedCountry
+        const matchType = searchType === 'government' 
+          ? contact.type === 'government' 
+          : searchType === 'ministries' 
+            ? contact.type === 'ministry'
+            : true
+        const matchQuery = !searchQuery || 
+          contact.name.toLowerCase().includes(searchQuery.toLowerCase())
+        return matchCountry && matchType && matchQuery
+      })
+      setSearchResults(govResults)
+    } else if (searchType === 'contacts') {
+      const contactResults = AFRICAN_CONTACTS.filter(contact => {
+        const matchCountry = !selectedCountry || contact.country === selectedCountry
+        const matchQuery = !searchQuery || 
+          contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          contact.company.toLowerCase().includes(searchQuery.toLowerCase())
+        return matchCountry && matchQuery
+      })
+      setSearchContacts(contactResults.map(c => ({
+        name: c.name,
+        title: c.title,
+        email: c.email,
+        phone: c.phone,
+        linkedIn: c.linkedIn,
+        photo: null
+      })))
     }
+    
+    setTimeout(() => setSearchLoading(false), 500)
   }
 
   const handleCreateList = async () => {
@@ -355,7 +297,7 @@ export default function Home() {
     }
   }
 
-  const handleSaveLead = async (company: Company, contact?: Contact) => {
+  const handleSaveAfricanCompany = async (company: typeof AFRICAN_COMPANIES[0]) => {
     try {
       const response = await fetch('/api/leads', {
         method: 'POST',
@@ -369,11 +311,6 @@ export default function Home() {
           companyLocation: company.location,
           companyWebsite: company.website,
           companyTech: JSON.stringify(company.technologies),
-          contactName: contact?.name,
-          contactTitle: contact?.title,
-          contactEmail: contact?.email,
-          contactPhone: contact?.phone,
-          contactLinkedIn: contact?.linkedIn,
           status: 'new'
         })
       })
@@ -383,8 +320,8 @@ export default function Home() {
         addLead(data.lead)
         addNotification({
           type: 'success',
-          title: 'Lead saved',
-          message: `${company.name} has been added to your leads`
+          title: 'Lead sauvegardé',
+          message: `${company.name} a été ajouté à vos prospects`
         })
       }
     } catch (error) {
@@ -436,16 +373,11 @@ export default function Home() {
         addNotification({
           type: 'success',
           title: t.exportSuccess,
-          message: `${leads.length} leads exported`
+          message: `${leads.length} leads exportés`
         })
       }
     } catch (error) {
       console.error('Export failed:', error)
-      addNotification({
-        type: 'error',
-        title: t.exportFailed,
-        message: 'Please try again'
-      })
     }
   }
 
@@ -465,6 +397,12 @@ export default function Home() {
     setShowTemplateModal(false)
   }
 
+  // Get industries for selected sector
+  const getIndustriesForSector = (sectorKey: string) => {
+    const sector = AFRICAN_INDUSTRIES[sectorKey as keyof typeof AFRICAN_INDUSTRIES]
+    return sector ? sector.subsectors : []
+  }
+
   // Language selector component
   const LanguageSelector = () => (
     <div className="relative">
@@ -481,12 +419,12 @@ export default function Home() {
       {showLangDropdown && (
         <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border z-50">
           {[
-            { code: 'en' as const, label: t.english },
-            { code: 'fr' as const, label: t.french },
-            { code: 'es' as const, label: t.spanish },
-            { code: 'de' as const, label: t.german },
-            { code: 'pt' as const, label: t.portuguese },
-            { code: 'it' as const, label: t.italian }
+            { code: 'en' as const, label: 'English' },
+            { code: 'fr' as const, label: 'Français' },
+            { code: 'es' as const, label: 'Español' },
+            { code: 'de' as const, label: 'Deutsch' },
+            { code: 'pt' as const, label: 'Português' },
+            { code: 'it' as const, label: 'Italiano' }
           ].map((lang) => (
             <button
               key={lang.code}
@@ -555,6 +493,435 @@ export default function Home() {
     </div>
   )
 
+  // African Market View
+  const AfricanMarketView = () => (
+    <div className="max-w-7xl mx-auto">
+      {/* Search Type Tabs */}
+      <div className="mb-6">
+        <Tabs value={searchType} onValueChange={(v) => setSearchType(v as typeof searchType)}>
+          <TabsList className="grid w-full max-w-2xl grid-cols-4">
+            <TabsTrigger value="companies" className="gap-2">
+              <Building2 className="w-4 h-4" />
+              Entreprises
+            </TabsTrigger>
+            <TabsTrigger value="government" className="gap-2">
+              <Landmark className="w-4 h-4" />
+              Gouvernements
+            </TabsTrigger>
+            <TabsTrigger value="ministries" className="gap-2">
+              <Building className="w-4 h-4" />
+              Ministères
+            </TabsTrigger>
+            <TabsTrigger value="contacts" className="gap-2">
+              <Users className="w-4 h-4" />
+              Contacts
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
+      {/* Filters */}
+      <Card className="mb-6">
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <Label className="text-sm flex items-center gap-2">
+                <Flag className="w-4 h-4" />
+                Pays
+              </Label>
+              <select
+                value={selectedCountry}
+                onChange={(e) => setSelectedCountry(e.target.value)}
+                className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="">Tous les pays</option>
+                {AFRICAN_COUNTRIES.map((country) => (
+                  <option key={country.code} value={country.code}>
+                    {country.flag} {country.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            {searchType === 'companies' && (
+              <>
+                <div>
+                  <Label className="text-sm flex items-center gap-2">
+                    <Briefcase className="w-4 h-4" />
+                    Secteur
+                  </Label>
+                  <select
+                    value={selectedSector}
+                    onChange={(e) => {
+                      setSelectedSector(e.target.value)
+                      setSelectedIndustry('')
+                    }}
+                    className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+                  >
+                    <option value="">Tous les secteurs</option>
+                    {Object.entries(AFRICAN_INDUSTRIES).map(([key, sector]) => (
+                      <option key={key} value={key}>{sector.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label className="text-sm">Industrie</Label>
+                  <select
+                    value={selectedIndustry}
+                    onChange={(e) => setSelectedIndustry(e.target.value)}
+                    className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+                    disabled={!selectedSector}
+                  >
+                    <option value="">Toutes les industries</option>
+                    {selectedSector && getIndustriesForSector(selectedSector).map((ind) => (
+                      <option key={ind} value={ind}>{ind}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+            
+            <div>
+              <Label className="text-sm flex items-center gap-2">
+                <Search className="w-4 h-4" />
+                Recherche
+              </Label>
+              <Input
+                placeholder="Nom, mot-clé..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleAfricanSearch()}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          
+          <div className="flex gap-2 mt-4 justify-end">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setSelectedCountry('')
+                setSelectedSector('')
+                setSelectedIndustry('')
+                setSearchQuery('')
+                setSearchResults([])
+                setSearchContacts([])
+              }}
+            >
+              Réinitialiser
+            </Button>
+            <Button 
+              onClick={handleAfricanSearch}
+              disabled={searchLoading}
+              style={{ backgroundColor: '#102B51' }}
+              className="text-white"
+            >
+              {searchLoading ? 'Recherche...' : 'Rechercher'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Results */}
+      {searchType === 'companies' && (
+        <div className="grid gap-4">
+          {searchResults.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="py-12 text-center">
+                <Building2 className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-semibold mb-2">Recherchez des entreprises africaines</h3>
+                <p className="text-muted-foreground">
+                  Utilisez les filtres pour trouver des entreprises par pays, secteur et industrie
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            searchResults.map((company, i) => (
+              <Card key={i} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-4">
+                      <div
+                        className="w-14 h-14 rounded-lg flex items-center justify-center text-white font-semibold text-lg"
+                        style={{ backgroundColor: '#668DF7' }}
+                      >
+                        {AFRICAN_COUNTRIES.find(c => c.code === company.country)?.flag || '🌍'}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-lg" style={{ color: '#102B51' }}>
+                            {company.name}
+                          </h3>
+                          <a
+                            href={company.website}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-muted-foreground hover:text-primary"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">{company.description}</p>
+                        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            {company.location}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Briefcase className="w-3 h-3" />
+                            {company.industry} - {company.sector}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Users className="w-3 h-3" />
+                            {company.size}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <DollarSign className="w-3 h-3" />
+                            {company.revenue}
+                          </span>
+                        </div>
+                        <div className="flex gap-1 mt-2 flex-wrap">
+                          {company.technologies?.map((tech: string) => (
+                            <Badge key={tech} variant="secondary" className="text-xs">
+                              {tech}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => handleSaveAfricanCompany(company)}
+                      size="sm"
+                      style={{ backgroundColor: '#668DF7' }}
+                      className="text-white shrink-0"
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Ajouter
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+
+      {searchType === 'government' && (
+        <div className="grid gap-4">
+          {searchResults.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="py-12 text-center">
+                <Landmark className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-semibold mb-2">Institutions gouvernementales africaines</h3>
+                <p className="text-muted-foreground">
+                  Trouvez les institutions gouvernementales par pays
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            searchResults.map((gov, i) => (
+              <Card key={i} className="hover:shadow-md transition-shadow border-l-4 border-l-blue-500">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-4">
+                    <div className="w-14 h-14 rounded-lg bg-blue-100 flex items-center justify-center">
+                      <Landmark className="w-7 h-7 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-lg" style={{ color: '#102B51' }}>{gov.name}</h3>
+                        <Badge variant="outline" className="bg-blue-50">{gov.category}</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">{gov.description}</p>
+                      <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3" />
+                          {gov.address}
+                        </span>
+                        {gov.phone && (
+                          <span className="flex items-center gap-1">
+                            <Phone className="w-3 h-3" />
+                            {gov.phone}
+                          </span>
+                        )}
+                        {gov.email && (
+                          <span className="flex items-center gap-1">
+                            <Mail className="w-3 h-3" />
+                            <a href={`mailto:${gov.email}`} className="hover:text-primary">{gov.email}</a>
+                          </span>
+                        )}
+                      </div>
+                      {gov.website && (
+                        <a 
+                          href={gov.website} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 mt-2 text-sm text-blue-600 hover:underline"
+                        >
+                          <Globe className="w-3 h-3" />
+                          {gov.website}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+
+      {searchType === 'ministries' && (
+        <div className="grid gap-4">
+          {searchResults.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="py-12 text-center">
+                <Building className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-semibold mb-2">Ministères africains</h3>
+                <p className="text-muted-foreground">
+                  Accédez aux différents ministères par pays
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            searchResults.map((ministry, i) => (
+              <Card key={i} className="hover:shadow-md transition-shadow border-l-4 border-l-green-500">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-4">
+                    <div className="w-14 h-14 rounded-lg bg-green-100 flex items-center justify-center">
+                      <Building className="w-7 h-7 text-green-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-lg" style={{ color: '#102B51' }}>{ministry.name}</h3>
+                        <Badge variant="outline" className="bg-green-50">{ministry.category}</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">{ministry.description}</p>
+                      <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3" />
+                          {ministry.address}
+                        </span>
+                        {ministry.phone && (
+                          <span className="flex items-center gap-1">
+                            <Phone className="w-3 h-3" />
+                            {ministry.phone}
+                          </span>
+                        )}
+                        {ministry.email && (
+                          <span className="flex items-center gap-1">
+                            <Mail className="w-3 h-3" />
+                            <a href={`mailto:${ministry.email}`} className="hover:text-primary">{ministry.email}</a>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+
+      {searchType === 'contacts' && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {searchContacts.length === 0 ? (
+            <Card className="border-dashed col-span-2">
+              <CardContent className="py-12 text-center">
+                <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-semibold mb-2">Contacts professionnels africains</h3>
+                <p className="text-muted-foreground">
+                  Trouvez des décideurs et contacts clés en Afrique
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            searchContacts.map((contact, i) => (
+              <Card key={i} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-4">
+                    <Avatar className="w-14 h-14">
+                      <AvatarFallback style={{ backgroundColor: '#668DF7', color: 'white' }} className="text-lg">
+                        {contact.name.split(' ').map(n => n[0]).join('')}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <h3 className="font-semibold" style={{ color: '#102B51' }}>{contact.name}</h3>
+                      <p className="text-sm text-muted-foreground">{contact.title}</p>
+                      <p className="text-sm font-medium mt-1">{AFRICAN_CONTACTS[i]?.company}</p>
+                      <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
+                        {contact.email && (
+                          <a href={`mailto:${contact.email}`} className="flex items-center gap-1 hover:text-primary">
+                            <Mail className="w-3 h-3" />
+                            {contact.email}
+                          </a>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                        {contact.phone && (
+                          <span className="flex items-center gap-1">
+                            <Phone className="w-3 h-3" />
+                            {contact.phone}
+                          </span>
+                        )}
+                        {contact.linkedIn && (
+                          <a href={contact.linkedIn} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-primary">
+                            <Linkedin className="w-3 h-3" />
+                            LinkedIn
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Regional Communities */}
+      <div className="mt-8">
+        <h3 className="text-lg font-semibold mb-4" style={{ color: '#102B51' }}>
+          <Handshake className="w-5 h-5 inline mr-2" />
+          Communautés Économiques Régionales
+        </h3>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {AFRICAN_COMMUNITIES.map((community) => (
+            <Card key={community.name} className="hover:shadow-md transition-shadow">
+              <CardContent className="pt-4">
+                <h4 className="font-semibold" style={{ color: '#102B51' }}>{community.name}</h4>
+                <p className="text-xs text-muted-foreground mt-1">{community.fullName}</p>
+                <div className="mt-2 text-sm">
+                  <span className="text-muted-foreground">Siège: </span>
+                  {community.headquarters}
+                </div>
+                <div className="mt-2">
+                  <span className="text-xs text-muted-foreground">Membres: </span>
+                  <span className="text-xs">
+                    {community.members === 'all' 
+                      ? 'Tous les pays africains'
+                      : `${community.members.length} pays`
+                    }
+                  </span>
+                </div>
+                <a 
+                  href={community.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 mt-2 text-sm text-blue-600 hover:underline"
+                >
+                  <Globe className="w-3 h-3" />
+                  Site web
+                </a>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+
   // Analytics View Component
   const AnalyticsView = () => {
     const totalLeads = leads.length
@@ -620,29 +987,29 @@ export default function Home() {
           </Card>
         </div>
 
+        {/* African Market Stats */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <PieChart className="w-5 h-5" style={{ color: '#668DF7' }} />
-                {t.industry} Distribution
+                <Flag className="w-5 h-5" style={{ color: '#668DF7' }} />
+                Répartition par Pays
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {['Technology', 'Finance', 'Healthcare', 'Retail', 'Other'].map((industry, i) => {
-                  const count = Math.floor(Math.random() * 20) + 5
-                  const percentage = Math.floor(Math.random() * 30) + 10
+                {['Guinée', 'Sénégal', 'Côte d\'Ivoire', 'Nigeria', 'Ghana', 'Autres'].map((country, i) => {
+                  const percentage = [30, 20, 15, 15, 10, 10][i]
                   return (
-                    <div key={industry} className="flex items-center gap-3">
-                      <div className="w-24 text-sm">{industry}</div>
+                    <div key={country} className="flex items-center gap-3">
+                      <div className="w-24 text-sm">{country}</div>
                       <div className="flex-1 bg-gray-100 rounded-full h-2">
                         <div 
                           className="h-2 rounded-full" 
                           style={{ width: `${percentage}%`, backgroundColor: '#668DF7' }}
                         />
                       </div>
-                      <span className="text-sm text-muted-foreground w-8">{count}</span>
+                      <span className="text-sm text-muted-foreground w-10">{percentage}%</span>
                     </div>
                   )
                 })}
@@ -653,21 +1020,22 @@ export default function Home() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Activity className="w-5 h-5" style={{ color: '#668DF7' }} />
-                {t.thisMonth} Activity
+                <Briefcase className="w-5 h-5" style={{ color: '#668DF7' }} />
+                Secteurs les plus prospectés
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {['Week 1', 'Week 2', 'Week 3', 'Week 4'].map((week, i) => {
-                  const count = Math.floor(Math.random() * 30) + 10
+                {['Mines', 'Télécoms', 'Banque', 'Énergie', 'Agriculture'].map((sector, i) => {
+                  const count = [45, 32, 28, 22, 18][i]
+                  const maxCount = 45
                   return (
-                    <div key={week} className="flex items-center gap-3">
-                      <div className="w-16 text-sm">{week}</div>
+                    <div key={sector} className="flex items-center gap-3">
+                      <div className="w-24 text-sm">{sector}</div>
                       <div className="flex-1 bg-gray-100 rounded-full h-4">
                         <div 
                           className="h-4 rounded-full flex items-center justify-end pr-2 text-xs text-white font-medium" 
-                          style={{ width: `${count * 2}%`, backgroundColor: '#102B51', minWidth: '40px' }}
+                          style={{ width: `${(count/maxCount)*100}%`, backgroundColor: '#102B51', minWidth: '40px' }}
                         >
                           {count}
                         </div>
@@ -706,7 +1074,7 @@ export default function Home() {
             <MailPlus className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
             <h3 className="text-lg font-semibold mb-2">{t.emailTemplates}</h3>
             <p className="text-muted-foreground mb-4">
-              Create email templates for your outreach campaigns.
+              Créez des modèles d'emails pour vos campagnes de prospection.
             </p>
             <Button
               onClick={() => setShowTemplateModal(true)}
@@ -752,13 +1120,13 @@ export default function Home() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t.newTemplate}</DialogTitle>
-            <DialogDescription>Create a new email template for your outreach.</DialogDescription>
+            <DialogDescription>Créez un nouveau modèle d'email pour votre prospection.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>Template Name</Label>
+              <Label>Nom du template</Label>
               <Input
-                placeholder="e.g., Initial Outreach"
+                placeholder="Ex: Premier contact gouvernement"
                 value={newTemplate.name}
                 onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
               />
@@ -766,7 +1134,7 @@ export default function Home() {
             <div>
               <Label>{t.subject}</Label>
               <Input
-                placeholder="e.g., Quick question about {{company_name}}"
+                placeholder="Ex: Opportunité de partenariat - {{company_name}}"
                 value={newTemplate.subject}
                 onChange={(e) => setNewTemplate({ ...newTemplate, subject: e.target.value })}
               />
@@ -774,9 +1142,9 @@ export default function Home() {
             <div>
               <Label>{t.body}</Label>
               <Textarea
-                placeholder="Hi {{first_name}},
+                placeholder="Excellence Monsieur le Ministre,
 
-I noticed that {{company_name}} is..."
+Je suis..."
                 value={newTemplate.body}
                 onChange={(e) => setNewTemplate({ ...newTemplate, body: e.target.value })}
                 rows={6}
@@ -784,7 +1152,7 @@ I noticed that {{company_name}} is..."
             </div>
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setShowTemplateModal(false)}>
-                Cancel
+                Annuler
               </Button>
               <Button onClick={handleSaveTemplate} style={{ backgroundColor: '#102B51' }} className="text-white">
                 {t.saveTemplate}
@@ -796,80 +1164,138 @@ I noticed that {{company_name}} is..."
     </div>
   )
 
-  // Advanced Filters Component
-  const AdvancedFilters = () => (
-    <div className={`mb-6 ${showFilters ? '' : 'hidden'}`}>
-      <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div>
-              <Label className="text-sm">{t.industry}</Label>
-              <select
-                value={filters.industry}
-                onChange={(e) => setFilters({ industry: e.target.value })}
-                className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="">All Industries</option>
-                {INDUSTRIES.map((ind) => (
-                  <option key={ind} value={ind}>{ind}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label className="text-sm">{t.companySize}</Label>
-              <select
-                value={filters.companySize}
-                onChange={(e) => setFilters({ companySize: e.target.value })}
-                className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="">All Sizes</option>
-                {COMPANY_SIZES.map((size) => (
-                  <option key={size} value={size}>{size}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label className="text-sm">{t.revenue}</Label>
-              <select
-                value={filters.revenue}
-                onChange={(e) => setFilters({ revenue: e.target.value })}
-                className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="">All Revenues</option>
-                {REVENUES.map((rev) => (
-                  <option key={rev} value={rev}>{rev}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label className="text-sm">{t.location}</Label>
-              <Input
-                placeholder="e.g., San Francisco"
-                value={filters.location}
-                onChange={(e) => setFilters({ location: e.target.value })}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label className="text-sm">{t.technology}</Label>
-              <Input
-                placeholder="e.g., React, AWS"
-                value={filters.technology}
-                onChange={(e) => setFilters({ technology: e.target.value })}
-                className="mt-1"
-              />
-            </div>
-          </div>
-          <div className="flex gap-2 mt-4 justify-end">
-            <Button variant="outline" onClick={clearFilters}>
-              {t.clearFilters}
+  // Leads View
+  const LeadsView = () => (
+    <div className="max-w-6xl mx-auto">
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <p className="text-muted-foreground">{leads.length} {t.leadsSaved}</p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleExport('csv')}
+            className="gap-2"
+          >
+            <Download className="w-4 h-4" />
+            {t.exportCSV}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleExport('excel')}
+            className="gap-2"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            {t.exportExcel}
+          </Button>
+        </div>
+      </div>
+
+      {leads.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="py-12 text-center">
+            <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+            <h3 className="text-lg font-semibold mb-2">{t.noLeadsYet}</h3>
+            <p className="text-muted-foreground mb-4">
+              {t.noLeadsDesc}
+            </p>
+            <Button
+              onClick={() => setCurrentView('africa')}
+              style={{ backgroundColor: '#668DF7' }}
+              className="text-white"
+            >
+              Explorer le marché africain
             </Button>
-            <Button onClick={() => setShowFilters(false)} style={{ backgroundColor: '#668DF7' }} className="text-white">
-              {t.applyFilters}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {leads.map((lead) => (
+            <Card key={lead.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-4">
+                    <div
+                      className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-semibold"
+                      style={{ backgroundColor: '#668DF7' }}
+                    >
+                      {lead.companyName?.[0] || '?'}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold" style={{ color: '#102B51' }}>
+                          {lead.companyName}
+                        </h3>
+                        <Badge
+                          variant="outline"
+                          className={
+                            lead.status === 'new' ? 'border-blue-500 text-blue-500' :
+                            lead.status === 'contacted' ? 'border-yellow-500 text-yellow-500' :
+                            lead.status === 'qualified' ? 'border-green-500 text-green-500' :
+                            'border-gray-500 text-gray-500'
+                          }
+                        >
+                          {lead.status === 'new' ? t.new : lead.status === 'contacted' ? t.contacted : lead.status === 'qualified' ? t.qualified : t.lost}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+                        {lead.companyIndustry && (
+                          <span className="flex items-center gap-1">
+                            <Briefcase className="w-3 h-3" />
+                            {lead.companyIndustry}
+                          </span>
+                        )}
+                        {lead.companyLocation && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            {lead.companyLocation}
+                          </span>
+                        )}
+                      </div>
+                      {lead.contactName && (
+                        <div className="mt-2 pt-2 border-t">
+                          <p className="text-sm">
+                            <span className="font-medium">{lead.contactName}</span>
+                            {lead.contactTitle && <span className="text-muted-foreground"> • {lead.contactTitle}</span>}
+                          </p>
+                          {lead.contactEmail && (
+                            <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                              <Mail className="w-3 h-3" />
+                              {lead.contactEmail}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={lead.status}
+                      onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value)}
+                      className="text-sm border rounded px-2 py-1"
+                    >
+                      <option value="new">{t.new}</option>
+                      <option value="contacted">{t.contacted}</option>
+                      <option value="qualified">{t.qualified}</option>
+                      <option value="lost">{t.lost}</option>
+                    </select>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteLead(lead.id)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   )
 
@@ -885,6 +1311,7 @@ I noticed that {{company_name}} is..."
                 <Target className="w-6 h-6 text-white" />
               </div>
               <span className="text-xl font-bold text-white">{t.appName}</span>
+              <Badge className="ml-2 bg-green-500 text-white text-xs">Afrique</Badge>
             </div>
             <div className="flex items-center gap-4">
               <LanguageSelector />
@@ -907,17 +1334,23 @@ I noticed that {{company_name}} is..."
         </header>
 
         {/* Hero Section */}
-        <section className="container mx-auto px-4 py-20">
+        <section className="container mx-auto px-4 py-16">
           <div className="max-w-4xl mx-auto text-center">
-            <Badge className="mb-4" style={{ backgroundColor: '#668DF7', color: 'white' }}>
-              <Sparkles className="w-3 h-3 mr-1" /> {t.heroBadge}
-            </Badge>
+            <div className="flex justify-center gap-2 mb-4">
+              <Badge style={{ backgroundColor: '#668DF7', color: 'white' }}>
+                <Sparkles className="w-3 h-3 mr-1" /> {t.heroBadge}
+              </Badge>
+              <Badge className="bg-green-500 text-white">
+                🌍 Marché Africain
+              </Badge>
+            </div>
             <h1 className="text-5xl font-bold mb-6" style={{ color: '#102B51' }}>
-              {t.heroTitle1}<br />
-              <span style={{ color: '#668DF7' }}>{t.heroTitle2}</span>
+              Prospectez le Marché Africain<br />
+              <span style={{ color: '#668DF7' }}>Avec l'IA</span>
             </h1>
             <p className="text-xl mb-8" style={{ color: '#1A2B49' }}>
-              {t.heroSubtitle}
+              Trouvez des entreprises, gouvernements et ministères à travers toute l'Afrique.
+              De la Guinée au Nigeria, du Sénégal à l'Afrique du Sud.
             </p>
             <div className="flex gap-4 justify-center">
               <Button
@@ -940,30 +1373,75 @@ I noticed that {{company_name}} is..."
           </div>
         </section>
 
-        {/* Features Section */}
-        <section className="container mx-auto px-4 py-16">
-          <div className="text-center mb-12">
+        {/* African Markets Section */}
+        <section className="container mx-auto px-4 py-12">
+          <div className="text-center mb-8">
             <h2 className="text-3xl font-bold mb-4" style={{ color: '#102B51' }}>
-              {t.featuresTitle}
+              Couverture du Marché Africain
             </h2>
             <p className="text-lg" style={{ color: '#1A2B49' }}>
-              {t.featuresSubtitle}
+              Accédez à des milliers d'entreprises et institutions dans 30+ pays africains
             </p>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {FEATURES.map((feature, index) => (
-              <Card key={index} className="border-none shadow-lg hover:shadow-xl transition-shadow">
-                <CardContent className="pt-6">
-                  <div
-                    className="w-12 h-12 rounded-lg flex items-center justify-center mb-4"
-                    style={{ backgroundColor: '#668DF7' }}
-                  >
-                    <feature.icon className="w-6 h-6 text-white" />
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2" style={{ color: '#102B51' }}>
-                    {t[feature.titleKey as keyof typeof t]}
-                  </h3>
-                  <p style={{ color: '#1A2B49' }}>{t[feature.descKey as keyof typeof t]}</p>
+          
+          <div className="grid md:grid-cols-4 gap-4 mb-8">
+            <Card className="text-center">
+              <CardContent className="pt-6">
+                <p className="text-4xl font-bold" style={{ color: '#668DF7' }}>30+</p>
+                <p className="text-muted-foreground">Pays couverts</p>
+              </CardContent>
+            </Card>
+            <Card className="text-center">
+              <CardContent className="pt-6">
+                <p className="text-4xl font-bold" style={{ color: '#668DF7' }}>15K+</p>
+                <p className="text-muted-foreground">Entreprises</p>
+              </CardContent>
+            </Card>
+            <Card className="text-center">
+              <CardContent className="pt-6">
+                <p className="text-4xl font-bold" style={{ color: '#668DF7' }}>500+</p>
+                <p className="text-muted-foreground">Ministères</p>
+              </CardContent>
+            </Card>
+            <Card className="text-center">
+              <CardContent className="pt-6">
+                <p className="text-4xl font-bold" style={{ color: '#668DF7' }}>20+</p>
+                <p className="text-muted-foreground">Secteurs</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="flex flex-wrap gap-2 justify-center">
+            {AFRICAN_COUNTRIES.slice(0, 15).map((country) => (
+              <Badge key={country.code} variant="outline" className="text-sm py-1 px-3">
+                {country.flag} {country.name}
+              </Badge>
+            ))}
+            <Badge variant="secondary" className="text-sm py-1 px-3">
+              +15 autres pays
+            </Badge>
+          </div>
+        </section>
+
+        {/* Sectors Section */}
+        <section className="container mx-auto px-4 py-12 bg-white rounded-xl">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold mb-4" style={{ color: '#102B51' }}>
+              Tous les Secteurs d'Activité
+            </h2>
+            <p className="text-lg" style={{ color: '#1A2B49' }}>
+              Des mines aux télécoms, de l'agriculture à la finance
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-4 gap-4">
+            {Object.entries(AFRICAN_INDUSTRIES).slice(0, 12).map(([key, sector]) => (
+              <Card key={key} className="hover:shadow-md transition-shadow">
+                <CardContent className="pt-4">
+                  <h3 className="font-semibold" style={{ color: '#102B51' }}>{sector.name}</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {sector.subsectors.length} sous-secteurs
+                  </p>
                 </CardContent>
               </Card>
             ))}
@@ -1009,16 +1487,6 @@ I noticed that {{company_name}} is..."
                     {formatNumber(plan.credits)} {t.creditsIncluded}
                   </p>
                 </CardHeader>
-                <CardContent>
-                  <ul className="space-y-3">
-                    {plan.features.map((feature, i) => (
-                      <li key={i} className="flex items-center gap-2" style={{ color: '#1A2B49' }}>
-                        <Check className="w-4 h-4" style={{ color: '#10B981' }} />
-                        {t[feature as keyof typeof t]}
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
                 <CardFooter>
                   <Button
                     className="w-full"
@@ -1038,6 +1506,7 @@ I noticed that {{company_name}} is..."
         <footer className="border-t py-8" style={{ backgroundColor: '#102B51' }}>
           <div className="container mx-auto px-4 text-center text-white">
             <p>{t.copyright}</p>
+            <p className="text-sm mt-2 text-white/60">Spécialisé pour le marché africain 🌍</p>
           </div>
         </footer>
 
@@ -1195,19 +1664,22 @@ I noticed that {{company_name}} is..."
             <Target className="w-6 h-6 text-white" />
           </div>
           {!sidebarCollapsed && (
-            <span className="text-lg font-bold text-white">Vibe</span>
+            <div className="flex items-center gap-1">
+              <span className="text-lg font-bold text-white">Vibe</span>
+              <Badge className="bg-green-500 text-white text-xs">Africa</Badge>
+            </div>
           )}
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 p-2 space-y-1">
           {[
-            { id: 'chat', icon: MessageSquare, labelKey: 'aiChat' },
-            { id: 'leads', icon: Users, labelKey: 'myLeads' },
-            { id: 'companies', icon: Building2, labelKey: 'companies' },
-            { id: 'lists', icon: List, labelKey: 'leadLists' },
-            { id: 'analytics', icon: BarChart3, labelKey: 'analytics' },
-            { id: 'sequences', icon: MailPlus, labelKey: 'emailSequences' }
+            { id: 'africa', icon: Globe, labelKey: 'Marché Africain' },
+            { id: 'chat', icon: MessageSquare, labelKey: t.aiChat },
+            { id: 'leads', icon: Users, labelKey: t.myLeads },
+            { id: 'lists', icon: List, labelKey: t.leadLists },
+            { id: 'analytics', icon: BarChart3, labelKey: t.analytics },
+            { id: 'sequences', icon: MailPlus, labelKey: t.emailSequences }
           ].map((item) => (
             <button
               key={item.id}
@@ -1219,7 +1691,7 @@ I noticed that {{company_name}} is..."
               }`}
             >
               <item.icon className="w-5 h-5 shrink-0" />
-              {!sidebarCollapsed && <span>{t[item.labelKey as keyof typeof t]}</span>}
+              {!sidebarCollapsed && <span>{item.labelKey}</span>}
             </button>
           ))}
         </nav>
@@ -1272,9 +1744,9 @@ I noticed that {{company_name}} is..."
         {/* Header */}
         <header className="border-b px-6 py-4 flex items-center justify-between bg-white">
           <h1 className="text-xl font-semibold" style={{ color: '#102B51' }}>
+            {currentView === 'africa' && '🌍 Marché Africain'}
             {currentView === 'chat' && t.aiProspectingAssistant}
             {currentView === 'leads' && t.myLeads}
-            {currentView === 'companies' && t.companySearch}
             {currentView === 'lists' && t.leadLists}
             {currentView === 'pricing' && t.pricing}
             {currentView === 'analytics' && t.analytics}
@@ -1300,10 +1772,9 @@ I noticed that {{company_name}} is..."
 
         {/* Content Area */}
         <div className="flex-1 overflow-auto p-6">
-          {/* Chat View */}
+          {currentView === 'africa' && <AfricanMarketView />}
           {currentView === 'chat' && (
             <div className="h-full flex flex-col max-w-4xl mx-auto">
-              {/* Messages */}
               <ScrollArea className="flex-1 pr-4">
                 {chatMessages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center p-8">
@@ -1320,7 +1791,11 @@ I noticed that {{company_name}} is..."
                       {t.describeCustomer}
                     </p>
                     <div className="flex flex-wrap gap-2 justify-center">
-                      {[t.suggestion1, t.suggestion2, t.suggestion3].map((suggestion, i) => (
+                      {[
+                        'Entreprises minières en Guinée',
+                        'Ministères des finances en Afrique de l\'Ouest',
+                        'Startups tech au Nigeria'
+                      ].map((suggestion, i) => (
                         <Button
                           key={i}
                           variant="outline"
@@ -1386,8 +1861,6 @@ I noticed that {{company_name}} is..."
                   </div>
                 )}
               </ScrollArea>
-
-              {/* Input */}
               <div className="mt-4 flex gap-2">
                 <Input
                   placeholder={t.describeProspect}
@@ -1407,358 +1880,12 @@ I noticed that {{company_name}} is..."
               </div>
             </div>
           )}
-
-          {/* Leads View */}
-          {currentView === 'leads' && (
-            <div className="max-w-6xl mx-auto">
-              <AdvancedFilters />
-              <div className="mb-6 flex items-center justify-between">
-                <div>
-                  <p className="text-muted-foreground">{leads.length} {t.leadsSaved}</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowFilters(!showFilters)}
-                    className="gap-2"
-                  >
-                    <Filter className="w-4 h-4" />
-                    {t.advancedFilters}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleExport('csv')}
-                    className="gap-2"
-                  >
-                    <Download className="w-4 h-4" />
-                    {t.exportCSV}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleExport('excel')}
-                    className="gap-2"
-                  >
-                    <FileSpreadsheet className="w-4 h-4" />
-                    {t.exportExcel}
-                  </Button>
-                </div>
-              </div>
-
-              {leads.length === 0 ? (
-                <Card className="border-dashed">
-                  <CardContent className="py-12 text-center">
-                    <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-semibold mb-2">{t.noLeadsYet}</h3>
-                    <p className="text-muted-foreground mb-4">
-                      {t.noLeadsDesc}
-                    </p>
-                    <Button
-                      onClick={() => setCurrentView('companies')}
-                      style={{ backgroundColor: '#668DF7' }}
-                      className="text-white"
-                    >
-                      {t.searchCompanies}
-                    </Button>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="grid gap-4">
-                  {leads.map((lead) => (
-                    <Card key={lead.id} className="hover:shadow-md transition-shadow">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start gap-4">
-                            <div
-                              className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-semibold"
-                              style={{ backgroundColor: '#668DF7' }}
-                            >
-                              {lead.companyName?.[0] || '?'}
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h3 className="font-semibold" style={{ color: '#102B51' }}>
-                                  {lead.companyName}
-                                </h3>
-                                <Badge
-                                  variant="outline"
-                                  className={
-                                    lead.status === 'new' ? 'border-blue-500 text-blue-500' :
-                                    lead.status === 'contacted' ? 'border-yellow-500 text-yellow-500' :
-                                    lead.status === 'qualified' ? 'border-green-500 text-green-500' :
-                                    'border-gray-500 text-gray-500'
-                                  }
-                                >
-                                  {lead.status === 'new' ? t.new : lead.status === 'contacted' ? t.contacted : lead.status === 'qualified' ? t.qualified : t.lost}
-                                </Badge>
-                              </div>
-                              <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                                {lead.companyIndustry && (
-                                  <span className="flex items-center gap-1">
-                                    <Briefcase className="w-3 h-3" />
-                                    {lead.companyIndustry}
-                                  </span>
-                                )}
-                                {lead.companyLocation && (
-                                  <span className="flex items-center gap-1">
-                                    <MapPin className="w-3 h-3" />
-                                    {lead.companyLocation}
-                                  </span>
-                                )}
-                                {lead.companySize && (
-                                  <span className="flex items-center gap-1">
-                                    <Users className="w-3 h-3" />
-                                    {lead.companySize} {t.employees}
-                                  </span>
-                                )}
-                              </div>
-                              {lead.contactName && (
-                                <div className="mt-2 pt-2 border-t">
-                                  <p className="text-sm">
-                                    <span className="font-medium">{lead.contactName}</span>
-                                    {lead.contactTitle && <span className="text-muted-foreground"> • {lead.contactTitle}</span>}
-                                  </p>
-                                  {lead.contactEmail && (
-                                    <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                                      <Mail className="w-3 h-3" />
-                                      {lead.contactEmail}
-                                    </p>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={lead.status}
-                              onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value)}
-                              className="text-sm border rounded px-2 py-1"
-                            >
-                              <option value="new">{t.new}</option>
-                              <option value="contacted">{t.contacted}</option>
-                              <option value="qualified">{t.qualified}</option>
-                              <option value="lost">{t.lost}</option>
-                            </select>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteLead(lead.id)}
-                              className="text-red-500 hover:text-red-700"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Companies View */}
-          {currentView === 'companies' && (
-            <div className="max-w-6xl mx-auto">
-              <AdvancedFilters />
-              <div className="mb-6 flex gap-2">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder={t.searchCompanies}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearch('companies')}
-                    className="pl-10"
-                  />
-                </div>
-                <Button
-                  onClick={() => handleSearch('companies')}
-                  disabled={searchLoading}
-                  style={{ backgroundColor: '#102B51' }}
-                  className="text-white"
-                >
-                  {searchLoading ? 'Searching...' : t.searchCompanies}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="gap-2"
-                >
-                  <Filter className="w-4 h-4" />
-                </Button>
-              </div>
-
-              <Tabs defaultValue="companies" className="w-full">
-                <TabsList className="grid w-full max-w-md grid-cols-2">
-                  <TabsTrigger value="companies">{t.companies}</TabsTrigger>
-                  <TabsTrigger value="contacts">{t.myLeads}</TabsTrigger>
-                </TabsList>
-                <TabsContent value="companies" className="mt-6">
-                  {searchResults.length === 0 ? (
-                    <Card className="border-dashed">
-                      <CardContent className="py-12 text-center">
-                        <Building2 className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                        <h3 className="text-lg font-semibold mb-2">{t.searchCompanies}</h3>
-                        <p className="text-muted-foreground">
-                          Enter a search query to find companies
-                        </p>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <div className="grid gap-4">
-                      {searchResults.map((company, i) => (
-                        <Card key={i} className="hover:shadow-md transition-shadow">
-                          <CardContent className="p-4">
-                            <div className="flex items-start justify-between">
-                              <div className="flex items-start gap-4">
-                                <div
-                                  className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-semibold"
-                                  style={{ backgroundColor: '#668DF7' }}
-                                >
-                                  {company.name[0]}
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <h3 className="font-semibold" style={{ color: '#102B51' }}>
-                                      {company.name}
-                                    </h3>
-                                    <a
-                                      href={company.website}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-muted-foreground hover:text-primary"
-                                    >
-                                      <ExternalLink className="w-4 h-4" />
-                                    </a>
-                                  </div>
-                                  <p className="text-sm text-muted-foreground">{company.description}</p>
-                                  <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                                    <span className="flex items-center gap-1">
-                                      <Briefcase className="w-3 h-3" />
-                                      {company.industry}
-                                    </span>
-                                    <span className="flex items-center gap-1">
-                                      <MapPin className="w-3 h-3" />
-                                      {company.location}
-                                    </span>
-                                    <span className="flex items-center gap-1">
-                                      <Users className="w-3 h-3" />
-                                      {company.size}
-                                    </span>
-                                    <span className="flex items-center gap-1">
-                                      <DollarSign className="w-3 h-3" />
-                                      {company.revenue}
-                                    </span>
-                                  </div>
-                                  <div className="flex gap-1 mt-2 flex-wrap">
-                                    {company.technologies.map((tech) => (
-                                      <Badge key={tech} variant="secondary" className="text-xs">
-                                        {tech}
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-                              <Button
-                                onClick={() => handleSaveLead(company)}
-                                size="sm"
-                                style={{ backgroundColor: '#668DF7' }}
-                                className="text-white"
-                              >
-                                <Plus className="w-4 h-4 mr-1" />
-                                {t.myLeads}
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  )}
-                </TabsContent>
-                <TabsContent value="contacts" className="mt-6">
-                  {searchContacts.length === 0 ? (
-                    <Card className="border-dashed">
-                      <CardContent className="py-12 text-center">
-                        <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                        <h3 className="text-lg font-semibold mb-2">Search Contacts</h3>
-                        <p className="text-muted-foreground">
-                          Enter a search query to find contacts
-                        </p>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <div className="grid gap-4">
-                      {searchContacts.map((contact, i) => (
-                        <Card key={i} className="hover:shadow-md transition-shadow">
-                          <CardContent className="p-4">
-                            <div className="flex items-start justify-between">
-                              <div className="flex items-start gap-4">
-                                <Avatar className="w-12 h-12">
-                                  <AvatarFallback style={{ backgroundColor: '#668DF7', color: 'white' }}>
-                                    {contact.name.split(' ').map(n => n[0]).join('')}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div>
-                                  <h3 className="font-semibold" style={{ color: '#102B51' }}>
-                                    {contact.name}
-                                  </h3>
-                                  <p className="text-sm text-muted-foreground">{contact.title}</p>
-                                  <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                                    {contact.email && (
-                                      <a href={`mailto:${contact.email}`} className="flex items-center gap-1 hover:text-primary">
-                                        <Mail className="w-3 h-3" />
-                                        {contact.email}
-                                      </a>
-                                    )}
-                                    {contact.phone && (
-                                      <span className="flex items-center gap-1">
-                                        <Phone className="w-3 h-3" />
-                                        {contact.phone}
-                                      </span>
-                                    )}
-                                    {contact.linkedIn && (
-                                      <a
-                                        href={contact.linkedIn}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-1 hover:text-primary"
-                                      >
-                                        <Linkedin className="w-3 h-3" />
-                                        LinkedIn
-                                      </a>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                              <Button
-                                onClick={() => handleSaveLead(MOCK_COMPANIES[i % MOCK_COMPANIES.length], contact)}
-                                size="sm"
-                                style={{ backgroundColor: '#668DF7' }}
-                                className="text-white"
-                              >
-                                <Plus className="w-4 h-4 mr-1" />
-                                {t.myLeads}
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
-            </div>
-          )}
-
-          {/* Lists View */}
+          {currentView === 'leads' && <LeadsView />}
           {currentView === 'lists' && (
             <div className="max-w-4xl mx-auto">
               <div className="mb-6 flex items-center justify-between">
                 <div>
-                  <p className="text-muted-foreground">{lists.length} lists</p>
+                  <p className="text-muted-foreground">{lists.length} listes</p>
                 </div>
                 <Button
                   onClick={() => setShowNewListModal(true)}
@@ -1766,31 +1893,30 @@ I noticed that {{company_name}} is..."
                   className="text-white gap-2"
                 >
                   <Plus className="w-4 h-4" />
-                  New List
+                  Nouvelle Liste
                 </Button>
               </div>
-
               {lists.length === 0 ? (
                 <Card className="border-dashed">
                   <CardContent className="py-12 text-center">
                     <List className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-semibold mb-2">No lists yet</h3>
+                    <h3 className="text-lg font-semibold mb-2">Pas encore de listes</h3>
                     <p className="text-muted-foreground mb-4">
-                      Create lists to organize your leads by campaign, industry, or any criteria.
+                      Créez des listes pour organiser vos prospects.
                     </p>
                     <Button
                       onClick={() => setShowNewListModal(true)}
                       style={{ backgroundColor: '#668DF7' }}
                       className="text-white"
                     >
-                      Create First List
+                      Créer une liste
                     </Button>
                   </CardContent>
                 </Card>
               ) : (
                 <div className="grid gap-4">
                   {lists.map((list) => (
-                    <Card key={list.id} className="hover:shadow-md transition-shadow cursor-pointer">
+                    <Card key={list.id} className="hover:shadow-md transition-shadow">
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between">
                           <div>
@@ -1798,9 +1924,6 @@ I noticed that {{company_name}} is..."
                             {list.description && (
                               <p className="text-sm text-muted-foreground mt-1">{list.description}</p>
                             )}
-                            <p className="text-sm text-muted-foreground mt-2">
-                              {list.leads?.length || 0} leads
-                            </p>
                           </div>
                           <Button
                             variant="ghost"
@@ -1816,37 +1939,34 @@ I noticed that {{company_name}} is..."
                   ))}
                 </div>
               )}
-
-              {/* New List Modal */}
               <Dialog open={showNewListModal} onOpenChange={setShowNewListModal}>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Create New List</DialogTitle>
-                    <DialogDescription>Organize your leads into custom lists.</DialogDescription>
+                    <DialogTitle>Créer une nouvelle liste</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4">
                     <div>
-                      <Label>List Name</Label>
+                      <Label>Nom de la liste</Label>
                       <Input
-                        placeholder="e.g., Q1 Outreach Campaign"
+                        placeholder="Ex: Prospects Guinée Mines"
                         value={newListName}
                         onChange={(e) => setNewListName(e.target.value)}
                       />
                     </div>
                     <div>
-                      <Label>Description (Optional)</Label>
+                      <Label>Description</Label>
                       <Input
-                        placeholder="Brief description of this list"
+                        placeholder="Description optionnelle"
                         value={newListDescription}
                         onChange={(e) => setNewListDescription(e.target.value)}
                       />
                     </div>
                     <div className="flex gap-2 justify-end">
                       <Button variant="outline" onClick={() => setShowNewListModal(false)}>
-                        Cancel
+                        Annuler
                       </Button>
                       <Button onClick={handleCreateList} style={{ backgroundColor: '#102B51' }} className="text-white">
-                        Create List
+                        Créer
                       </Button>
                     </div>
                   </div>
@@ -1854,23 +1974,14 @@ I noticed that {{company_name}} is..."
               </Dialog>
             </div>
           )}
-
-          {/* Analytics View */}
           {currentView === 'analytics' && <AnalyticsView />}
-
-          {/* Email Sequences View */}
           {currentView === 'sequences' && <EmailSequencesView />}
-
-          {/* Pricing View */}
           {currentView === 'pricing' && (
             <div className="max-w-5xl mx-auto">
               <div className="text-center mb-8">
                 <h2 className="text-3xl font-bold mb-4" style={{ color: '#102B51' }}>
                   {t.pricingTitle}
                 </h2>
-                <p className="text-lg" style={{ color: '#1A2B49' }}>
-                  {t.pricingSubtitle}
-                </p>
               </div>
               <div className="grid md:grid-cols-3 gap-6">
                 {PRICING_PLANS.map((plan, index) => (
@@ -1901,23 +2012,13 @@ I noticed that {{company_name}} is..."
                         {formatNumber(plan.credits)} {t.creditsIncluded}
                       </p>
                     </CardHeader>
-                    <CardContent>
-                      <ul className="space-y-3">
-                        {plan.features.map((feature, i) => (
-                          <li key={i} className="flex items-center gap-2" style={{ color: '#1A2B49' }}>
-                            <Check className="w-4 h-4" style={{ color: '#10B981' }} />
-                            {t[feature as keyof typeof t]}
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
                     <CardFooter>
                       <Button
                         className="w-full"
                         variant={plan.popular ? 'default' : 'outline'}
                         style={{ backgroundColor: plan.popular ? '#102B51' : undefined }}
                       >
-                        {plan.price === 0 ? 'Current Plan' : 'Upgrade'}
+                        {plan.price === 0 ? 'Plan actuel' : 'Évoluer'}
                       </Button>
                     </CardFooter>
                   </Card>
