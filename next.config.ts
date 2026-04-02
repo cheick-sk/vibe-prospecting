@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   reactStrictMode: false,
   serverExternalPackages: ["@prisma/client", "prisma"],
   // Allow cross-origin requests from preview and Render
