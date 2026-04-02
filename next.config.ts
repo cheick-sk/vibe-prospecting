@@ -6,12 +6,6 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
-  // Disable Turbopack for production build stability
-  experimental: {
-    turbo: {
-      enabled: false,
-    },
-  },
   // Allow cross-origin requests from preview and Render
   allowedDevOrigins: [
     'preview-chat-21eaf496-4b04-462b-8b12-4008ce419ce2.space.z.ai',
