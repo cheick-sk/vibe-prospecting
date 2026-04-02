@@ -6,19 +6,17 @@ services:
     plan: free
     branch: main
     buildCommand: npm install && npm run build
-    startCommand: npx prisma migrate deploy && NODE_ENV=production node .next/standalone/server.js
+    startCommand: npx prisma migrate deploy && npm run start:render
     envVars:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        fromDatabase:
-          name: vibe-prospecting-db
-          property: connectionString
+        value: postgresql://neondb_owner:npg_M4xh1WrGNXDb@ep-snowy-pond-am5utxv4.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require
       - key: DIRECT_DATABASE_URL
-        fromDatabase:
-          name: vibe-prospecting-db
-          property: connectionString
+        value: postgresql://neondb_owner:npg_M4xh1WrGNXDb@ep-snowy-pond-am5utxv4.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require
       - key: NEXTAUTH_SECRET
         generateValue: true
       - key: NEXTAUTH_URL
         value: https://vibe-prospecting.onrender.com
+      - key: HOSTNAME
+        value: 0.0.0.0
