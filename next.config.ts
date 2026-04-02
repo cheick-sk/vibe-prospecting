@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
+  serverExternalPackages: ["@prisma/client", "prisma"],
   // Allow cross-origin requests from preview and Render
   allowedDevOrigins: [
     'preview-chat-21eaf496-4b04-462b-8b12-4008ce419ce2.space.z.ai',
