@@ -3,14 +3,20 @@ import { db } from '@/lib/db'
 import { cookies } from 'next/headers'
 import ZAI from 'z-ai-web-dev-sdk'
 
-const SYSTEM_PROMPT = `You are Vibe AI, an expert B2B prospecting assistant. You help users find and qualify potential business prospects through natural conversation.
+const SYSTEM_PROMPT = `You are Vibe AI, an expert B2B prospecting assistant focused on the African market, especially Guinea. You help users find and qualify potential business prospects through natural conversation.
 
 Your capabilities include:
 1. Understanding ideal customer profiles (ICP) from natural language descriptions
-2. Suggesting companies that match the user's criteria
+2. Suggesting African companies and government organizations that match the user's criteria
 3. Helping identify decision-makers and contact information
 4. Providing insights about company technologies, size, revenue, and industry
 5. Qualifying leads based on intent signals and fit
+
+Focus areas:
+- Guinea and West African markets
+- Government ministries and public sector organizations
+- African startups and SMEs
+- Mining, agriculture, energy, and telecom sectors
 
 Guidelines:
 - Be conversational and helpful
@@ -21,12 +27,6 @@ Guidelines:
 - When discussing contacts, include: Name, Title, Email (if available), LinkedIn
 - Be proactive in suggesting next steps
 - Use a professional but friendly tone
-
-When a user describes their ideal prospect, help them by:
-1. Understanding their target industry, company size, location preferences
-2. Suggesting relevant companies that match their criteria
-3. Identifying key decision-makers to contact
-4. Providing actionable insights for outreach
 
 Example response format for company suggestions:
 **Company: [Name]**
@@ -44,7 +44,10 @@ export async function POST(request: NextRequest) {
     const userId = cookieStore.get('userId')?.value
 
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ 
+        error: 'Authentication required. Please log in to continue.',
+        requiresAuth: true 
+      }, { status: 401 })
     }
 
     const body = await request.json()
@@ -55,12 +58,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user to check credits
-    const user = await db.user.findUnique({
-      where: { id: userId }
-    })
+    let user
+    try {
+      user = await db.user.findUnique({
+        where: { id: userId }
+      })
+    } catch (dbError) {
+      console.error('Database error:', dbError)
+      return NextResponse.json({ 
+        error: 'Database connection error. Please try again later.' 
+      }, { status: 503 })
+    }
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+      return NextResponse.json({ 
+        error: 'User not found. Please log in again.',
+        requiresAuth: true 
+      }, { status: 401 })
     }
 
     // Check credits
@@ -73,29 +87,36 @@ export async function POST(request: NextRequest) {
 
     // Create or get chat
     let chat
-    if (chatId) {
-      chat = await db.chat.findUnique({
-        where: { id: chatId, userId },
-        include: { messages: { orderBy: { createdAt: 'asc' } } }
-      })
-    }
+    try {
+      if (chatId) {
+        chat = await db.chat.findUnique({
+          where: { id: chatId, userId },
+          include: { messages: { orderBy: { createdAt: 'asc' } } }
+        })
+      }
 
-    if (!chat) {
-      chat = await db.chat.create({
-        data: {
-          userId,
-          title: message.substring(0, 50) + (message.length > 50 ? '...' : ''),
-          messages: {
-            create: { role: 'user', content: message }
-          }
-        },
-        include: { messages: { orderBy: { createdAt: 'asc' } } }
-      })
-    } else {
-      // Add user message
-      await db.chatMessage.create({
-        data: { chatId: chat.id, role: 'user', content: message }
-      })
+      if (!chat) {
+        chat = await db.chat.create({
+          data: {
+            userId,
+            title: message.substring(0, 50) + (message.length > 50 ? '...' : ''),
+            messages: {
+              create: { role: 'user', content: message }
+            }
+          },
+          include: { messages: { orderBy: { createdAt: 'asc' } } }
+        })
+      } else {
+        // Add user message
+        await db.chatMessage.create({
+          data: { chatId: chat.id, role: 'user', content: message }
+        })
+      }
+    } catch (dbError) {
+      console.error('Chat database error:', dbError)
+      return NextResponse.json({ 
+        error: 'Failed to create chat. Please try again.' 
+      }, { status: 500 })
     }
 
     // Deduct credit
@@ -115,14 +136,26 @@ export async function POST(request: NextRequest) {
     ]
 
     // Call AI
-    const zai = await ZAI.create()
-    const completion = await zai.chat.completions.create({
-      messages,
-      temperature: 0.7,
-      max_tokens: 2000
-    })
-
-    const assistantMessage = completion.choices[0]?.message?.content || 'I apologize, but I was unable to generate a response. Please try again.'
+    let assistantMessage: string
+    try {
+      const zai = await ZAI.create()
+      const completion = await zai.chat.completions.create({
+        messages,
+        temperature: 0.7,
+        max_tokens: 2000
+      })
+      assistantMessage = completion.choices[0]?.message?.content || 'I apologize, but I was unable to generate a response. Please try again.'
+    } catch (aiError) {
+      console.error('AI error:', aiError)
+      // Refund credit on AI failure
+      await db.user.update({
+        where: { id: userId },
+        data: { credits: { increment: 1 } }
+      })
+      return NextResponse.json({ 
+        error: 'AI service temporarily unavailable. Please try again.' 
+      }, { status: 503 })
+    }
 
     // Save assistant message
     await db.chatMessage.create({
@@ -143,7 +176,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Chat error:', error)
     return NextResponse.json(
-      { error: 'Failed to process message' },
+      { error: 'Failed to process message. Please try again.' },
       { status: 500 }
     )
   }
@@ -156,7 +189,10 @@ export async function GET(request: NextRequest) {
     const userId = cookieStore.get('userId')?.value
 
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ 
+        error: 'Authentication required',
+        requiresAuth: true 
+      }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
@@ -208,7 +244,10 @@ export async function DELETE(request: NextRequest) {
     const userId = cookieStore.get('userId')?.value
 
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ 
+        error: 'Authentication required',
+        requiresAuth: true 
+      }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
