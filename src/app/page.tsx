@@ -38,6 +38,16 @@ import {
   AFRICAN_ORGANIZATIONS,
   AFRICAN_STARTUPS
 } from '@/lib/african-companies'
+import {
+  GUINEA_REGIONS,
+  GUINEA_ECONOMIC_SECTORS,
+  GUINEA_GOVERNMENT,
+  GUINEA_AGENCIES,
+  GUINEA_COMPANIES,
+  GUINEA_CONTACTS,
+  GUINEA_ORGANIZATIONS,
+  GUINEA_INVESTMENT_OPPORTUNITIES
+} from '@/lib/guinea-data'
 
 // Format number with commas
 const formatNumber = (num: number): string => {
@@ -225,10 +235,10 @@ export default function Home() {
     
     let results: any[] = []
     
-    // Combine all data sources
-    const allCompanies = [...AFRICAN_COMPANIES_EXTENDED, ...AFRICAN_STARTUPS]
-    const allContacts = AFRICAN_CONTACTS_EXTENDED
-    const allOrganizations = AFRICAN_ORGANIZATIONS
+    // Combine all data sources - include Guinea specific data
+    const allCompanies = [...GUINEA_COMPANIES, ...AFRICAN_COMPANIES_EXTENDED, ...AFRICAN_STARTUPS]
+    const allContacts = [...GUINEA_CONTACTS, ...AFRICAN_CONTACTS_EXTENDED]
+    const allOrganizations = [...GUINEA_ORGANIZATIONS, ...AFRICAN_ORGANIZATIONS]
     
     if (searchType === 'companies') {
       results = allCompanies.filter(company => {
@@ -238,16 +248,22 @@ export default function Home() {
         const matchQuery = !searchQuery || 
           company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           company.industry?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          company.sector?.toLowerCase().includes(searchQuery.toLowerCase())
+          company.sector?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          company.region?.toLowerCase().includes(searchQuery.toLowerCase())
         return matchCountry && matchIndustry && matchSector && matchQuery
       })
       setSearchResults(results)
     } else if (searchType === 'government' || searchType === 'ministries') {
-      // Combine government contacts and organizations
-      const govResults = [...GOVERNMENT_CONTACTS, ...allOrganizations].filter(contact => {
+      // Combine all government sources
+      const allGov = [
+        ...GOVERNMENT_CONTACTS, 
+        ...allOrganizations,
+        ...GUINEA_AGENCIES
+      ]
+      const govResults = allGov.filter(contact => {
         const matchCountry = !selectedCountry || contact.country === selectedCountry
         const matchType = searchType === 'government' 
-          ? (contact.type === 'government' || contact.type === 'organization')
+          ? (contact.type === 'government' || contact.type === 'organization' || contact.type === 'Agence' || contact.type === 'Société d\'État')
           : searchType === 'ministries' 
             ? contact.type === 'ministry'
             : true
@@ -262,7 +278,8 @@ export default function Home() {
         const matchQuery = !searchQuery || 
           contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           contact.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          contact.title?.toLowerCase().includes(searchQuery.toLowerCase())
+          contact.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          contact.region?.toLowerCase().includes(searchQuery.toLowerCase())
         return matchCountry && matchQuery
       })
       setSearchContacts(contactResults.map(c => ({
@@ -1392,15 +1409,21 @@ Je suis..."
               Couverture du Marché Africain
             </h2>
             <p className="text-lg" style={{ color: '#1A2B49' }}>
-              Accédez à des milliers d'entreprises et institutions dans 30+ pays africains
+              Focus spécial sur la Guinée avec toutes les régions et préfectures
             </p>
           </div>
           
-          <div className="grid md:grid-cols-5 gap-4 mb-8">
+          <div className="grid md:grid-cols-6 gap-4 mb-8">
             <Card className="text-center">
               <CardContent className="pt-6">
                 <p className="text-4xl font-bold" style={{ color: '#668DF7' }}>30+</p>
-                <p className="text-muted-foreground">Pays couverts</p>
+                <p className="text-muted-foreground">Pays</p>
+              </CardContent>
+            </Card>
+            <Card className="text-center border-2" style={{ borderColor: '#10B981' }}>
+              <CardContent className="pt-6">
+                <p className="text-4xl font-bold" style={{ color: '#10B981' }}>100+</p>
+                <p className="text-muted-foreground">🇬🇳 Entreprises GN</p>
               </CardContent>
             </Card>
             <Card className="text-center">
@@ -1415,16 +1438,16 @@ Je suis..."
                 <p className="text-muted-foreground">Startups Tech</p>
               </CardContent>
             </Card>
-            <Card className="text-center">
+            <Card className="text-center border-2" style={{ borderColor: '#10B981' }}>
               <CardContent className="pt-6">
-                <p className="text-4xl font-bold" style={{ color: '#668DF7' }}>500+</p>
-                <p className="text-muted-foreground">Ministères</p>
+                <p className="text-4xl font-bold" style={{ color: '#10B981' }}>8</p>
+                <p className="text-muted-foreground">🇬🇳 Régions GN</p>
               </CardContent>
             </Card>
             <Card className="text-center">
               <CardContent className="pt-6">
-                <p className="text-4xl font-bold" style={{ color: '#668DF7' }}>20+</p>
-                <p className="text-muted-foreground">Secteurs</p>
+                <p className="text-4xl font-bold" style={{ color: '#668DF7' }}>25+</p>
+                <p className="text-muted-foreground">Ministères GN</p>
               </CardContent>
             </Card>
           </div>
@@ -1439,6 +1462,110 @@ Je suis..."
               +15 autres pays
             </Badge>
           </div>
+        </section>
+
+        {/* Guinea Focus Section */}
+        <section className="container mx-auto px-4 py-12 bg-gradient-to-r from-green-50 to-yellow-50 rounded-xl">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold mb-2" style={{ color: '#10B981' }}>
+              🇬🇳 Focus Guinée
+            </h2>
+            <p className="text-lg" style={{ color: '#1A2B49' }}>
+              Toutes les régions, préfectures et opportunités d'investissement
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-6 mb-8">
+            {/* Regions */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-green-600" />
+                  Régions de Guinée (8)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-2">
+                  {GUINEA_REGIONS.map((region) => (
+                    <div key={region.name} className="p-2 bg-green-50 rounded-lg">
+                      <p className="font-medium text-sm">{region.name}</p>
+                      <p className="text-xs text-muted-foreground">{region.prefectures.length} préfectures</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Economic Sectors */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Briefcase className="w-5 h-5 text-green-600" />
+                  Secteurs Économiques Clés
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {Object.entries(GUINEA_ECONOMIC_SECTORS).slice(0, 6).map(([key, sector]) => (
+                    <div key={key} className="flex items-center justify-between p-2 bg-green-50 rounded-lg">
+                      <span className="font-medium text-sm">{sector.name}</span>
+                      <Badge variant="outline" className="text-xs">{sector.contributionGDP}% PIB</Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          
+          {/* Investment Opportunities */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-green-600" />
+                Opportunités d'Investissement en Guinée
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-3 gap-4">
+                {GUINEA_INVESTMENT_OPPORTUNITIES.slice(0, 6).map((opp, i) => (
+                  <div key={i} className="p-3 border rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge className="bg-green-100 text-green-700">{opp.sector}</Badge>
+                    </div>
+                    <h4 className="font-semibold text-sm mb-1">{opp.title}</h4>
+                    <p className="text-xs text-muted-foreground mb-2">{opp.description}</p>
+                    <p className="text-xs font-medium">Investissement: {opp.investment}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Government */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Landmark className="w-5 h-5 text-green-600" />
+                Gouvernement & Institutions
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="p-3 bg-green-50 rounded-lg">
+                  <p className="font-semibold text-sm">Présidence</p>
+                  <p className="text-xs text-muted-foreground">Palais du Peuple, Conakry</p>
+                </div>
+                <div className="p-3 bg-green-50 rounded-lg">
+                  <p className="font-semibold text-sm">25+ Ministères</p>
+                  <p className="text-xs text-muted-foreground">Tous les ministères couverts</p>
+                </div>
+                <div className="p-3 bg-green-50 rounded-lg">
+                  <p className="font-semibold text-sm">15+ Agences</p>
+                  <p className="text-xs text-muted-foreground">Sociétés d'État et agences</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </section>
 
         {/* Sectors Section */}
